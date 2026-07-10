@@ -3,7 +3,7 @@ import Footer from "../components/Footer/Footer"
 import AboutUs from "../components/Herosection/AboutUs"
 import FeaturedCategories from "../components/Herosection/FeaturedCategories"
 import Hero from "../components/Herosection/Hero"
-import HowItWorks from "../components/Herosection/Howitworks"
+import HowItWorks from "../components/Herosection/HowItworks"
 import StatsBanner from "../components/Herosection/StatsBanner"
 import Navbar from "../components/Navbar/Navbar"
 
