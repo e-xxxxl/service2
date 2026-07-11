@@ -26,7 +26,7 @@ const Navbar = () => {
         {/* Logo Section (left) */}
         <div className="flex items-center">
           <NavLink to="/" className="flex items-center" onClick={() => setIsMenuOpen(false)}>
-            <div className="bg-[#f06d00] text-white font-black italic text-lg sm:text-xl px-1.5 py-0.5 rounded mr-0.5">hi</div>
+            <div className="bg-[#f06d00] text-white font-black italic text-lg sm:text-xl px-1.5 py-0.5 rounded mr-0.5">9jaTradies</div>
             <span className="text-[#2d333f] font-bold text-lg sm:text-xl tracking-tight">pages</span>
           </NavLink>
         </div>

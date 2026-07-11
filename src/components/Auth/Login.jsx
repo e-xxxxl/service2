@@ -51,7 +51,7 @@ const Login = () => {
 
   return (
     <AuthShell eyebrow="Welcome back" title="Sign in to your account">
-      <div className="mb-8">
+      <div className="mb-8 mt-20">
         <h1 className="text-2xl font-semibold text-[#2d333f]">Sign in</h1>
         <p className="text-sm text-gray-500 mt-1.5">
           Don't have an account?{' '}

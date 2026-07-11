@@ -79,8 +79,8 @@ const Footer = () => {
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-10">
           <div className="col-span-2 lg:col-span-1">
             <div className="flex items-center mb-4">
-              <div className="bg-[#f06d00] text-white font-black italic text-xl px-1.5 py-0.5 rounded mr-0.5">hi</div>
-              <span className="text-white font-bold text-xl tracking-tight">pages</span>
+               <div className="bg-[#f06d00] text-white font-black italic text-lg sm:text-xl px-1.5 py-0.5 rounded mr-0.5">9jaTradies</div>
+                          <span className="text-white font-bold text-xl tracking-tight">pages</span>
             </div>
             <p className="text-sm text-white/50 leading-relaxed mb-5 max-w-[220px]">
               Search, browse profiles, and message verified service providers directly.
