@@ -1,5 +1,5 @@
 // services/authService.js
-const API_BASE_URL =  'http://localhost:5000/api';
+const API_BASE_URL =  'https://service-server-e64r.onrender.com/api';
 
 class AuthService {
   static async request(endpoint, options = {}) {
@@ -24,21 +24,21 @@ class AuthService {
   }
 
   static login(email, password) {
-    return this.request('http://localhost:5000/api/auth/login', {
+    return this.request('https://service-server-e64r.onrender.com/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
   }
 
   static signup(userData) {
-    return this.request('http://localhost:5000/api/auth/signup', {
+    return this.request('https://service-server-e64r.onrender.com/api/auth/signup', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
   }
 
   static verifyEmail(token) {
-    return this.request('http://localhost:5000/api/auth/verify-email/${token}', {
+    return this.request('https://service-server-e64r.onrender.com/api/auth/verify-email/${token}', {
       method: 'POST',
     });
   }
