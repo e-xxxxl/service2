@@ -1,5 +1,5 @@
 // components/auth/EmailVerification.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Mail, CheckCircle, AlertCircle, RefreshCw, ArrowRight } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -8,8 +8,9 @@ const EmailVerification = ({ email }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { verifyEmail, resendVerification } = useAuth();
+  const verificationAttempted = useRef(false); // Add ref to prevent double calls
 
-  const [status, setStatus] = useState('pending'); // pending, verifying, success, error
+  const [status, setStatus] = useState('pending');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [countdown, setCountdown] = useState(0);
@@ -17,7 +18,8 @@ const EmailVerification = ({ email }) => {
   const token = searchParams.get('token');
 
   useEffect(() => {
-    if (token) {
+    if (token && !verificationAttempted.current) {
+      verificationAttempted.current = true; // Mark as attempted
       handleVerifyEmail(token);
     }
   }, [token]);
@@ -33,7 +35,7 @@ const EmailVerification = ({ email }) => {
       setError(err.message || 'Verification failed. Please try again.');
     }
   };
-
+  
   const handleResendVerification = async () => {
     if (countdown > 0) return;
 

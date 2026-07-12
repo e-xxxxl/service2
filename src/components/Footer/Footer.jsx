@@ -1,6 +1,7 @@
 import React from 'react';
 import { Mail, ArrowRight } from 'lucide-react';
-
+import  navlogo  from '../../assets/navlogoo.png';
+import { Link } from 'react-router-dom';
 // lucide-react no longer ships brand/logo icons (Facebook, Instagram, LinkedIn, etc.)
 // since those are trademarked logos, not generic icons — so these are small inline
 // SVGs instead of a package import that may not exist in your installed version.
@@ -79,8 +80,15 @@ const Footer = () => {
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-10">
           <div className="col-span-2 lg:col-span-1">
             <div className="flex items-center mb-4">
-               <div className="bg-[#f06d00] text-white font-black italic text-lg sm:text-xl px-1.5 py-0.5 rounded mr-0.5">9jaTradies</div>
-                          <span className="text-white font-bold text-xl tracking-tight">pages</span>
+             <Link to="/ ">
+                             <div className="">
+                               <img
+                                 src={navlogo}
+                                 alt="Logo"
+                                 className="h-18 w-auto object-contain"
+                               />
+                             </div>
+                           </Link>
             </div>
             <p className="text-sm text-white/50 leading-relaxed mb-5 max-w-[220px]">
               Search, browse profiles, and message verified service providers directly.

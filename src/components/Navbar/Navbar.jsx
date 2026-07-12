@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
-
+import navlogo from '../../assets/navlogoo.png';
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -25,10 +25,15 @@ const Navbar = () => {
 
         {/* Logo Section (left) */}
         <div className="flex items-center">
-          <NavLink to="/" className="flex items-center" onClick={() => setIsMenuOpen(false)}>
-            <div className="bg-[#f06d00] text-white font-black italic text-lg sm:text-xl px-1.5 py-0.5 rounded mr-0.5">9jaTradies</div>
-            <span className="text-[#2d333f] font-bold text-lg sm:text-xl tracking-tight">pages</span>
-          </NavLink>
+          <Link to="/ ">
+                <div className="">
+                  <img
+                    src={navlogo}
+                    alt="Logo"
+                    className="h-18 w-auto object-contain"
+                  />
+                </div>
+              </Link>
         </div>
 
         {/* Navigation Links (centered, desktop only) */}
