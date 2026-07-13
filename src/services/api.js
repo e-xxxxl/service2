@@ -1,5 +1,5 @@
 // src/services/api.js - Update token retrieval
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
 
 async function request(path, options = {}) {
   // Check for both possible token keys
