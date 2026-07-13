@@ -52,6 +52,8 @@ const SignUp = () => {
     companyName: '',
     serviceType: '',
     phone: '',
+      state: '',  // NEW
+  city: '',   // NEW
   });
 
   const handleChange = (e) => {
@@ -74,7 +76,7 @@ const SignUp = () => {
   setLoading(true);
 
   try {
-    const response = await fetch('https://service-server-e64r.onrender.com/api/auth/signup', {
+    const response = await fetch('http://localhost:5000/api/auth/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...formData, accountType }),
@@ -199,62 +201,100 @@ const SignUp = () => {
         </div>
 
         {/* Provider Fields */}
-        {accountType === 'provider' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="md:col-span-2">
-              <label htmlFor="companyName" className="block text-sm font-medium text-[#2d333f] mb-1.5">
-                Company name
-              </label>
-              <input
-                id="companyName"
-                type="text"
-                name="companyName"
-                value={formData.companyName}
-                onChange={handleChange}
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#f06d00] focus:ring-1 focus:ring-[#f06d00]/20 transition-all"
-                placeholder="Ellis Plumbing Co."
-                required
-              />
-            </div>
+    
+{accountType === 'provider' && (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    {/* Existing fields */}
+    <div className="md:col-span-2">
+      <label htmlFor="companyName" className="block text-sm font-medium text-[#2d333f] mb-1.5">
+        Company name
+      </label>
+      <input
+        id="companyName"
+        type="text"
+        name="companyName"
+        value={formData.companyName}
+        onChange={handleChange}
+        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#f06d00] focus:ring-1 focus:ring-[#f06d00]/20 transition-all"
+        placeholder="Ellis Plumbing Co."
+        required
+      />
+    </div>
 
-            <div>
-              <label htmlFor="serviceType" className="block text-sm font-medium text-[#2d333f] mb-1.5">
-                Service type
-              </label>
-              <select
-                id="serviceType"
-                name="serviceType"
-                value={formData.serviceType}
-                onChange={handleChange}
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#f06d00] focus:ring-1 focus:ring-[#f06d00]/20 transition-all"
-                required
-              >
-                <option value="">Select a service</option>
-                {SERVICES.map((service) => (
-                  <option key={service} value={service.toLowerCase()}>
-                    {service}
-                  </option>
-                ))}
-              </select>
-            </div>
+    <div>
+      <label htmlFor="serviceType" className="block text-sm font-medium text-[#2d333f] mb-1.5">
+        Service type
+      </label>
+      <select
+        id="serviceType"
+        name="serviceType"
+        value={formData.serviceType}
+        onChange={handleChange}
+        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#f06d00] focus:ring-1 focus:ring-[#f06d00]/20 transition-all"
+        required
+      >
+        <option value="">Select a service</option>
+        {SERVICES.map((service) => (
+          <option key={service} value={service.toLowerCase()}>
+            {service}
+          </option>
+        ))}
+      </select>
+    </div>
 
-            <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-[#2d333f] mb-1.5">
-                Phone number
-              </label>
-              <input
-                id="phone"
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={handleChange}
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#f06d00] focus:ring-1 focus:ring-[#f06d00]/20 transition-all"
-                placeholder="(555) 123-4567"
-                required
-              />
-            </div>
-          </div>
-        )}
+    <div>
+      <label htmlFor="phone" className="block text-sm font-medium text-[#2d333f] mb-1.5">
+        Phone number
+      </label>
+      <input
+        id="phone"
+        type="tel"
+        name="phone"
+        value={formData.phone}
+        onChange={handleChange}
+        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#f06d00] focus:ring-1 focus:ring-[#f06d00]/20 transition-all"
+        placeholder="(555) 123-4567"
+        required
+      />
+    </div>
+
+    {/* NEW: Location Fields */}
+    <div>
+      <label htmlFor="state" className="block text-sm font-medium text-[#2d333f] mb-1.5">
+        State
+      </label>
+      <select
+        id="state"
+        name="state"
+        value={formData.state || ''}
+        onChange={handleChange}
+        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#f06d00] focus:ring-1 focus:ring-[#f06d00]/20 transition-all"
+        required
+      >
+        <option value="">Select state</option>
+        {['Lagos', 'Abuja (FCT)', 'Rivers', 'Oyo', 'Kano', 'Delta', 'Edo', 'Enugu', 'Kaduna', 'Other'].map(state => (
+          <option key={state} value={state}>{state}</option>
+        ))}
+      </select>
+    </div>
+
+    <div>
+      <label htmlFor="city" className="block text-sm font-medium text-[#2d333f] mb-1.5">
+        City
+      </label>
+      <input
+        id="city"
+        type="text"
+        name="city"
+        value={formData.city || ''}
+        onChange={handleChange}
+        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#f06d00] focus:ring-1 focus:ring-[#f06d00]/20 transition-all"
+        placeholder="Ikeja, Lekki, etc."
+        required
+      />
+    </div>
+  </div>
+)}
 
         {/* Password */}
         <div>

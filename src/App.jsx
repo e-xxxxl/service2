@@ -11,6 +11,7 @@ import EmailVerification from './components/Auth/EmailVerification.jsx';
 import Dashboard from './components/Dashboard/Dashboard.jsx';
 // import Dashboard from './components/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
+import ProviderDashboard from './components/Dashboard/ProviderDashboard.jsx';
 
 function App() {
   return (
@@ -35,6 +36,14 @@ function App() {
                 element={
                  
                     <Dashboard/>
+                 
+                }
+              />
+              <Route
+                path="/provider-dashboard"
+                element={
+                 
+                    <ProviderDashboard/>
                  
                 }
               />
