@@ -19,7 +19,8 @@ export const AuthProvider = ({ children }) => {
   const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
 
   // Check existing session
-  useEffect(() => {
+  // context/AuthContext.jsx - Update checkAuth
+useEffect(() => {
     const checkAuth = async () => {
       try {
         const token = localStorage.getItem('authToken');
@@ -28,28 +29,39 @@ export const AuthProvider = ({ children }) => {
           return;
         }
 
+        console.log('Checking auth with token...');
+        
         const response = await fetch(`${API_URL}/auth/verify`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
         });
 
         if (response.ok) {
           const result = await response.json();
           const userData = result.data || result.user || result;
+          
+          console.log('Auth check successful:', userData);
+          
           setUser(userData);
           setIsEmailVerified(userData?.isEmailVerified || false);
         } else {
+          console.log('Auth check failed, clearing token');
           localStorage.removeItem('authToken');
+          setUser(null);
         }
       } catch (error) {
-        console.error('Auth check failed:', error);
+        console.error('Auth check error:', error);
         localStorage.removeItem('authToken');
+        setUser(null);
       } finally {
         setLoading(false);
       }
     };
 
     checkAuth();
-  }, []);
+  }, [API_URL]);
 
   const login = async (credentials) => {
     console.log('Login attempt:', credentials.email);
@@ -99,7 +111,8 @@ export const AuthProvider = ({ children }) => {
     return result;
   };
 
-  const verifyEmail = async (token) => {
+  // context/AuthContext.jsx - Update verifyEmail function
+const verifyEmail = async (token) => {
     const response = await fetch(`${API_URL}/auth/verify-email/${token}`, {
       method: 'POST',
     });
@@ -115,11 +128,16 @@ export const AuthProvider = ({ children }) => {
 
     if (accessToken) {
       localStorage.setItem('authToken', accessToken);
-      setUser(userData);
-      setIsEmailVerified(true);
+      
+      // Store account type for routing
+      if (userData) {
+        localStorage.setItem('userAccountType', userData.accountType);
+        setUser(userData);
+        setIsEmailVerified(true);
+      }
     }
 
-    return result;
+    return result; // Make sure to return the result
   };
 
   const resendVerification = async (email) => {

@@ -7,8 +7,9 @@ import { useAuth } from '../../context/AuthContext';
 const EmailVerification = ({ email }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { verifyEmail, resendVerification } = useAuth();
-  const verificationAttempted = useRef(false); // Add ref to prevent double calls
+  const { verifyEmail, resendVerification, user } = useAuth();
+  const verificationAttempted = useRef(false);
+  const redirectTimer = useRef(null);
 
   const [status, setStatus] = useState('pending');
   const [loading, setLoading] = useState(false);
@@ -17,22 +18,64 @@ const EmailVerification = ({ email }) => {
 
   const token = searchParams.get('token');
 
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (redirectTimer.current) {
+        clearTimeout(redirectTimer.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (token && !verificationAttempted.current) {
-      verificationAttempted.current = true; // Mark as attempted
+      verificationAttempted.current = true;
       handleVerifyEmail(token);
     }
   }, [token]);
 
+  // Watch for user data after verification to determine routing
+  useEffect(() => {
+    if (status === 'success' && user) {
+      const accountType = user.accountType || 'customer';
+      
+      // Clear any existing timer
+      if (redirectTimer.current) {
+        clearTimeout(redirectTimer.current);
+      }
+      
+      // Route based on account type
+      redirectTimer.current = setTimeout(() => {
+        if (accountType === 'provider') {
+          navigate('/provider-dashboard');
+        } else {
+          navigate('/dashboard');
+        }
+      }, 1800);
+    }
+  }, [status, user, navigate]);
+
   const handleVerifyEmail = async (verificationToken) => {
     setStatus('verifying');
+    setError('');
+    
     try {
-      await verifyEmail(verificationToken);
+      const result = await verifyEmail(verificationToken);
       setStatus('success');
-      setTimeout(() => navigate('/dashboard'), 1800);
+      
+      // Store user data from verification response
+      const userData = result.user || result.data?.user || result.data;
+      
+      if (userData) {
+        // Update local storage with account type for quick access
+        localStorage.setItem('userAccountType', userData.accountType);
+        console.log('Email verified. Account type:', userData.accountType);
+      }
+      
     } catch (err) {
       setStatus('error');
       setError(err.message || 'Verification failed. Please try again.');
+      console.error('Verification error:', err);
     }
   };
   
@@ -41,6 +84,7 @@ const EmailVerification = ({ email }) => {
 
     setLoading(true);
     setError('');
+    setStatus('pending');
 
     try {
       await resendVerification(email);
@@ -57,9 +101,16 @@ const EmailVerification = ({ email }) => {
       }, 1000);
     } catch (err) {
       setError(err.message || 'Failed to resend email');
+      setStatus('error');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Determine redirect path for display
+  const getRedirectPath = () => {
+    const accountType = user?.accountType || localStorage.getItem('userAccountType');
+    return accountType === 'provider' ? '/provider-dashboard' : '/dashboard';
   };
 
   return (
@@ -84,7 +135,7 @@ const EmailVerification = ({ email }) => {
                   <AlertCircle className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
                   <p className="text-sm text-gray-600">
                     Click the link in the email to verify your account. 
-                    Don’t forget to check your spam folder.
+                    Don't forget to check your spam folder.
                   </p>
                 </div>
               </div>
@@ -130,12 +181,17 @@ const EmailVerification = ({ email }) => {
               <div className="w-20 h-20 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-8">
                 <CheckCircle className="w-11 h-11 text-green-600" />
               </div>
-              <h2 className="text-3xl font-semibold text-[#2d333f] mb-3">Email verified successfully!</h2>
-              <p className="text-gray-600 mb-8">
-                Welcome aboard. Redirecting you to your dashboard...
+              <h2 className="text-3xl font-semibold text-[#2d333f] mb-3">
+                Email verified successfully!
+              </h2>
+              <p className="text-gray-600 mb-4">
+                Welcome aboard! You're all set to start using 9jaTradiesPages.
+              </p>
+              <p className="text-sm text-gray-500 mb-8">
+                Redirecting you to your {user?.accountType === 'provider' ? 'provider' : 'customer'} dashboard...
               </p>
               <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                <div className="bg-[#f06d00] h-1.5 rounded-full w-0 animate-[progress_1.8s_ease-in-out_forwards]" />
+                <div className="bg-[#f06d00] h-1.5 rounded-full animate-progress" />
               </div>
             </>
           )}
@@ -175,10 +231,13 @@ const EmailVerification = ({ email }) => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes progress {
           from { width: 0%; }
           to { width: 100%; }
+        }
+        .animate-progress {
+          animation: progress 1.8s ease-in-out forwards;
         }
       `}</style>
     </div>

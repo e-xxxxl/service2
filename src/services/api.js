@@ -1,8 +1,7 @@
-// src/services/api.js - Update token retrieval
+// services/api.js
 const BASE_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
 
 async function request(path, options = {}) {
-  // Check for both possible token keys
   const token = localStorage.getItem('authToken') || localStorage.getItem('token');
   
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -17,12 +16,9 @@ async function request(path, options = {}) {
   const data = await res.json();
   
   if (!res.ok) {
-    // Handle 401 specifically
     if (res.status === 401) {
       localStorage.removeItem('authToken');
       localStorage.removeItem('token');
-      // Optionally redirect to login
-      // window.location.href = '/login';
     }
     throw new Error(data.message || 'Request failed');
   }
@@ -32,12 +28,24 @@ async function request(path, options = {}) {
 
 export const api = {
   getDashboard: () => request('/customer/dashboard'),
-  searchPros: (params) => request(`/customer/search?${new URLSearchParams(params)}`),
+  
+  searchPros: (queryString) => {
+    const url = queryString ? `/customer/search?${queryString}` : '/customer/search';
+    return request(url);
+  },
+  
   toggleFavorite: (proId) => request(`/customer/favorites/${proId}`, { method: 'POST' }),
+  
   markNotificationRead: (id) => request(`/customer/notifications/${id}/read`, { method: 'PATCH' }),
+  
+  // FIXED: Use correct endpoint
   sendMessage: (proId, text) =>
-    request(`/customer/conversations/${proId}/messages`, { 
+    request(`/customer/messages/${proId}`, {  // ← Changed from conversations to messages
       method: 'POST', 
       body: JSON.stringify({ text }) 
     }),
+    
+  // Get messages/conversations
+  getMessages: () => request('/customer/messages'),
+  getConversation: (conversationId) => request(`/customer/messages/${conversationId}`),
 };

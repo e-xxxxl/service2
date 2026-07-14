@@ -103,7 +103,7 @@ const Footer = () => {
               <a href="#" aria-label="LinkedIn" className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
                 <LinkedinIcon />
               </a>
-              <a href="mailto:hello@hipages.example" aria-label="Email" className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+              <a href="mailto:hello@9jatradiespages.example" aria-label="Email" className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
                 <Mail size={16} />
               </a>
             </div>
@@ -129,7 +129,7 @@ const Footer = () => {
       {/* Bottom bar */}
       <div className="border-t border-white/10">
         <div className="max-w-6xl mx-auto px-5 sm:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/40">
-          <span>© {new Date().getFullYear()} hipages. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} 9jaTradiespages. All rights reserved.</span>
           <span>Made for Nigerian customers and service providers.</span>
         </div>
       </div>

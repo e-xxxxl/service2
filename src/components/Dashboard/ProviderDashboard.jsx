@@ -1,6 +1,6 @@
 // components/dashboard/ProviderDashboard.jsx
 // components/dashboard/ProviderDashboard.jsx
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   LayoutGrid,
   MessageCircle,
@@ -37,7 +37,8 @@ import {
   Filter,
   MoreVertical,
   Hash,
-  ExternalLink,
+  ExternalLink, 
+  Shield, AlertTriangle,
 } from "lucide-react";
 import logoIcon from "../../assets/dashlogo.png";
 import { useProviderDashboard } from "../../hooks/useProviderDashboard";
@@ -926,6 +927,7 @@ function ProfileView({ providerName, companyName, profileCompletion, onUpdatePro
 }
 
 // Messages View Component
+// Replace the MessagesView function in ProviderDashboard.jsx
 function MessagesView({
   recentMessages,
   selectedConversation,
@@ -934,61 +936,118 @@ function MessagesView({
   onNewMessageChange,
   onSendMessage
 }) {
+  const [chatMessages, setChatMessages] = useState([]);
+  const [sending, setSending] = useState(false);
+  const [warning, setWarning] = useState("");
+  const messagesEndRef = useRef(null);
+
+  // Add useRef import at the top if not already there
+  // import { useState, useRef, useEffect } from "react";
+
+  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  useEffect(() => { scrollToBottom(); }, [chatMessages]);
+
+  // Fetch messages when conversation is selected
+  useEffect(() => {
+    if (selectedConversation?.id) {
+      fetchMessages(selectedConversation.id);
+    }
+  }, [selectedConversation]);
+
+  const fetchMessages = async (conversationId) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
+      const res = await fetch(`${API_URL}/provider/messages`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Find the selected conversation's messages
+        const conv = data.data.find(c => c.id === conversationId);
+        setChatMessages(conv?.messages || []);
+      }
+    } catch (err) { console.error('Fetch messages error:', err); }
+  };
+
+  const handleSend = async () => {
+    if (!newMessage?.trim() || !selectedConversation) return;
+    
+    // Check for contact info
+    const phonePattern = /\b\d{10,}\b|[\d]{3}[-.]?[\d]{3}[-.]?[\d]{4}/;
+    const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+    
+    if (phonePattern.test(newMessage) || emailPattern.test(newMessage)) {
+      setWarning('⚠️ Sharing contact information is not allowed.');
+      setTimeout(() => setWarning(''), 5000);
+      return;
+    }
+
+    setSending(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
+      
+      const response = await fetch(`${API_URL}/provider/messages/${selectedConversation.customerId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ text: newMessage })
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.warning || data.message || 'Failed to send message');
+      }
+
+      // Add message to local state
+      setChatMessages(prev => [...prev, { 
+        id: Date.now().toString(), 
+        text: newMessage, 
+        sender: 'me', 
+        senderModel: 'ServiceProvider',
+        createdAt: new Date().toISOString() 
+      }]);
+      onNewMessageChange?.("");
+    } catch (err) {
+      setWarning(err.message || 'Failed to send message');
+      setTimeout(() => setWarning(''), 5000);
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="flex h-[calc(100vh-0px)]">
       {/* Conversations List */}
       <div className="w-[360px] border-r border-[#E2E0D9] bg-white">
         <div className="p-4 border-b border-[#E2E0D9]">
-          <h2 className="text-[18px] font-semibold font-['Space_Grotesk',sans-serif] mb-4">
-            Messages
-          </h2>
+          <h2 className="text-[18px] font-semibold font-['Space_Grotesk',sans-serif] mb-4">Messages</h2>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9A9488]" />
-            <input
-              type="text"
-              placeholder="Search conversations..."
-              className="w-full rounded-lg border border-[#E2E0D9] pl-10 pr-4 py-2.5 text-[13px] focus:outline-none focus:border-[#1E7A34]"
-            />
+            <input type="text" placeholder="Search conversations..." className="w-full rounded-lg border border-[#E2E0D9] pl-10 pr-4 py-2.5 text-[13px] focus:outline-none focus:border-[#1E7A34]" />
           </div>
         </div>
-        
         <div className="overflow-y-auto">
           {(recentMessages || []).length === 0 ? (
             <div className="p-8 text-center">
               <MessageCircle className="h-8 w-8 text-[#9A9488] mx-auto mb-3" />
               <p className="text-[14px] text-[#55605A]">No messages yet</p>
-              <p className="text-[12px] text-[#9A9488] mt-1">
-                Messages from customers will appear here
-              </p>
+              <p className="text-[12px] text-[#9A9488] mt-1">Messages from customers will appear here</p>
             </div>
           ) : (
             recentMessages.map((msg) => (
-              <button
-                key={msg.id}
-                onClick={() => onSelectConversation?.(msg)}
-                className={`w-full flex items-start gap-3 p-4 text-left hover:bg-[#F7F6F2] transition-colors border-b border-[#E2E0D9] ${
-                  selectedConversation?.id === msg.id ? 'bg-[#F7F6F2]' : ''
-                }`}
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1E7A34] text-[14px] font-semibold text-white">
-                  {msg.customerName?.[0] || "C"}
-                </div>
+              <button key={msg.id} onClick={() => onSelectConversation?.(msg)}
+                className={`w-full flex items-start gap-3 p-4 text-left hover:bg-[#F7F6F2] transition-colors border-b border-[#E2E0D9] ${selectedConversation?.id === msg.id ? 'bg-[#F7F6F2] border-l-[3px] border-l-[#1E7A34]' : ''}`}>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1E7A34] text-[14px] font-semibold text-white">{msg.customerName?.[0] || "C"}</div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-[14px] font-semibold text-[#1E2420]">
-                      {msg.customerName}
-                    </p>
-                    <span className="shrink-0 text-[11px] text-[#9A9488]">
-                      {msg.time}
-                    </span>
-                  </div>
-                  <p className="truncate text-[12px] text-[#55605A] mt-1">
-                    {msg.preview}
-                  </p>
+                  <div className="flex items-center justify-between gap-2"><p className="truncate text-[14px] font-semibold text-[#1E2420]">{msg.customerName}</p><span className="shrink-0 text-[11px] text-[#9A9488]">{msg.time}</span></div>
+                  <p className="truncate text-[12px] text-[#55605A] mt-1">{msg.preview}</p>
                 </div>
-                {msg.unread && (
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#F0821E] mt-2" />
-                )}
+                {msg.unread && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#F0821E] mt-2" />}
               </button>
             ))
           )}
@@ -999,83 +1058,54 @@ function MessagesView({
       <div className="flex-1 flex flex-col bg-[#F5F4F0]">
         {selectedConversation ? (
           <>
-            {/* Chat Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E0D9] bg-white">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1E7A34] text-[14px] font-semibold text-white">
-                  {selectedConversation.customerName?.[0] || "C"}
-                </div>
-                <div>
-                  <p className="text-[14px] font-semibold text-[#1E2420]">
-                    {selectedConversation.customerName}
-                  </p>
-                  <p className="text-[12px] text-[#55605A]">Customer</p>
-                </div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1E7A34] text-[14px] font-semibold text-white">{selectedConversation.customerName?.[0] || "C"}</div>
+                <div><p className="text-[14px] font-semibold text-[#1E2420]">{selectedConversation.customerName}</p><p className="text-[12px] text-[#55605A]">Customer</p></div>
               </div>
-              <button className="rounded-lg p-2 hover:bg-[#F7F6F2] transition-colors">
-                <MoreVertical className="h-5 w-5 text-[#55605A]" />
-              </button>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F7F6F2] text-[11px] text-[#9A9488]"><Shield className="h-3 w-3" />Secure chat</div>
             </div>
 
-            {/* Messages */}
+            <div className="px-5 py-2 bg-[#FFF8F0] border-b border-[#F0821E]/10 flex items-center gap-2 text-[11px] text-[#B85E10]"><Shield className="h-3.5 w-3.5" />Keep communication on the platform. Sharing contacts is not allowed.</div>
+
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {/* Example messages - you'll populate from actual data */}
-              <div className="flex justify-start">
-                <div className="max-w-[70%] rounded-2xl rounded-tl-sm bg-white px-4 py-3 shadow-sm">
-                  <p className="text-[14px] text-[#1E2420]">
-                    Hello! I'm interested in your plumbing services for a bathroom renovation.
-                  </p>
-                  <p className="text-[11px] text-[#9A9488] mt-1">10:30 AM</p>
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <div className="max-w-[70%] rounded-2xl rounded-tr-sm bg-[#1E7A34] px-4 py-3 shadow-sm">
-                  <p className="text-[14px] text-white">
-                    Hi! I'd be happy to help. When would you like to schedule an inspection?
-                  </p>
-                  <p className="text-[11px] text-white/70 mt-1">10:32 AM</p>
-                </div>
-              </div>
+              {chatMessages.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-center"><p className="text-[14px] text-[#9A9488]">No messages yet. Start the conversation!</p></div>
+              ) : chatMessages.map((msg, i) => {
+                const isMine = msg.sender === 'me' || msg.senderModel === 'ServiceProvider';
+                return (
+                  <div key={msg.id || i} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[70%] rounded-2xl px-4 py-2.5 ${isMine ? 'bg-[#1E7A34] text-white rounded-br-md' : 'bg-white border border-[#E2E0D9] rounded-bl-md shadow-sm'}`}>
+                      <p className="text-[14px]">{msg.text}</p>
+                      <p className={`text-[10px] mt-1 ${isMine ? 'text-white/70' : 'text-[#9A9488]'}`}>{new Date(msg.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</p>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
             </div>
 
-            {/* Message Input */}
+            {warning && (<div className="mx-4 mb-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-[12px] text-red-600">{warning}<button onClick={() => setWarning('')} className="ml-2"><X className="h-3.5 w-3.5 inline" /></button></div>)}
+
             <div className="p-4 border-t border-[#E2E0D9] bg-white">
               <div className="flex items-center gap-3">
-                <button className="rounded-lg p-2 hover:bg-[#F7F6F2] transition-colors">
-                  <Paperclip className="h-5 w-5 text-[#55605A]" />
-                </button>
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => onNewMessageChange?.(e.target.value)}
-                  placeholder="Type your message..."
-                  className="flex-1 rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34]"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && newMessage.trim()) {
-                      onSendMessage?.();
-                    }
-                  }}
-                />
-                <button
-                  onClick={onSendMessage}
-                  disabled={!newMessage.trim()}
-                  className="rounded-lg bg-[#1E7A34] p-3 text-white hover:bg-[#166B2C] transition-colors disabled:opacity-50"
-                >
+                <input type="text" value={newMessage} onChange={(e) => onNewMessageChange?.(e.target.value)}
+                  placeholder="Type your message..." onKeyDown={(e) => { if (e.key === 'Enter' && newMessage.trim()) handleSend(); }}
+                  className="flex-1 rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34]" />
+                <button onClick={handleSend} disabled={!newMessage?.trim() || sending}
+                  className="rounded-lg bg-[#1E7A34] p-3 text-white hover:bg-[#166B2C] transition-colors disabled:opacity-50">
                   <Send className="h-5 w-5" />
                 </button>
               </div>
+              <p className="text-[10px] text-[#9A9488] mt-2 flex items-center gap-1"><Shield className="h-3 w-3" />Phone numbers and emails are automatically blocked</p>
             </div>
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <MessageCircle className="h-12 w-12 text-[#9A9488] mx-auto mb-4" />
-              <h3 className="text-[18px] font-semibold text-[#1E2420] font-['Space_Grotesk',sans-serif]">
-                Select a conversation
-              </h3>
-              <p className="text-[14px] text-[#55605A] mt-2">
-                Choose a conversation from the list to start messaging
-              </p>
+              <h3 className="text-[18px] font-semibold text-[#1E2420] font-['Space_Grotesk',sans-serif]">Select a conversation</h3>
+              <p className="text-[14px] text-[#55605A] mt-2">Choose a conversation from the list to start messaging</p>
             </div>
           </div>
         )}
@@ -1083,7 +1113,6 @@ function MessagesView({
     </div>
   );
 }
-
 // Jobs View Component
 function JobsView({ activeJobs, loading, onRespondToJob }) {
   return (
