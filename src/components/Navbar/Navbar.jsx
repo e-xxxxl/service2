@@ -63,9 +63,11 @@ const Navbar = () => {
           </Link>
 
           {/* Compact CTA always visible on small/medium screens */}
+          <Link to="signup">
           <button className="lg:hidden bg-[#f06d00] text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-[#d96200] transition-all">
             Get Started
           </button>
+          </Link>
 
           {/* Hamburger toggle */}
           <button
@@ -103,12 +105,14 @@ const Navbar = () => {
 
           <div className="border-t border-gray-100 my-2" />
 
-          <button className="border border-gray-300 text-[#2d333f] px-4 py-3 rounded-xl text-sm font-bold hover:bg-gray-50 transition-all text-left">
+          {/* <button className="border border-gray-300 text-[#2d333f] px-4 py-3 rounded-xl text-sm font-bold hover:bg-gray-50 transition-all text-left">
             For businesses
-          </button>
+          </button> */}
+          <Link to="signup">
           <button className="border border-gray-300 text-[#2d333f] px-4 py-3 rounded-xl text-sm font-bold hover:bg-gray-50 transition-all text-left">
             Sign Up
           </button>
+          </Link>
         </div>
       </div>
     </nav>

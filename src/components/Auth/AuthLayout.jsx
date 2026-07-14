@@ -3,11 +3,11 @@ import React, { useEffect, useState } from 'react';
 
 const DEFAULT_SLIDES = [
   {
-    image: "https://images.unsplash.com/photo-1581578731548-5f7d6c0a3c5e?auto=format&fit=crop&q=80&w=2070",
+    image: "https://res.cloudinary.com/dhkzg2gfk/image/upload/v1784039723/ali-mkumbwa-PxlKOcj0a3Q-unsplash_mwanre.jpg",
     caption: "Licensed professionals ready when you need them",
   },
   {
-    image: "https://images.unsplash.com/photo-1558618666-fcd25c85ee64?auto=format&fit=crop&q=80&w=2070",
+    image: "https://res.cloudinary.com/dhkzg2gfk/image/upload/v1784039838/michael-nandong-AWxWjmNSoNU-unsplash_ia6ney.jpg",
     caption: "Get multiple quotes and choose with confidence",
   },
   {

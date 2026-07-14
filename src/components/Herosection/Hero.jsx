@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Star, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const popularServices = ['Plumbing', 'Electrical', 'Cleaning', 'Tutoring', 'Photography', 'IT Support'];
 
@@ -90,15 +91,18 @@ const Hero = () => {
               {current.kicker}
             </div>
 
+
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold leading-[1.1] mb-4 text-balance">
               {current.title}
             </h1>
+
 
             <p className="text-base sm:text-lg text-white/80 leading-relaxed mb-7 max-w-md">
               {current.subtitle}
             </p>
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+              <Link to="/signup">
               <button
                 onClick={() => console.log('CTA clicked:', current.cta)}
                 className="group inline-flex items-center justify-center gap-2 bg-[#f06d00] hover:bg-[#d96200] text-white font-semibold text-[15px] sm:text-base px-6 sm:px-7 py-3.5 rounded-lg transition-colors w-full sm:w-auto"
@@ -106,6 +110,8 @@ const Hero = () => {
                 {current.cta}
                 <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
               </button>
+
+              </Link>
 
               {/* Rating proof sits next to the CTA instead of a row of icon badges — reads as real product evidence, not decoration */}
               {/* <div className="flex items-center gap-2 text-white/90 text-sm">
