@@ -129,7 +129,7 @@ const Footer = () => {
       {/* Bottom bar */}
       <div className="border-t border-white/10">
         <div className="max-w-6xl mx-auto px-5 sm:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/40">
-          <span>© {new Date().getFullYear()} 9jaTradiespages. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} 9jaTradiesPages. All rights reserved.</span>
           <span>Made for Nigerian customers and service providers.</span>
         </div>
       </div>
