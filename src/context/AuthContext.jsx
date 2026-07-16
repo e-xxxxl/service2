@@ -16,10 +16,11 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isEmailVerified, setIsEmailVerified] = useState(false);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   // Check existing session
   // context/AuthContext.jsx - Update checkAuth
+// context/AuthContext.jsx - Update checkAuth
 useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -29,8 +30,26 @@ useEffect(() => {
           return;
         }
 
-        console.log('Checking auth with token...');
-        
+        // Skip verification for admin tokens
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          if (payload.accountType === 'admin') {
+            console.log('Admin token detected, skipping auth verify');
+            setUser({
+              _id: payload.id,
+              email: payload.email,
+              accountType: 'admin',
+              fullName: payload.fullName,
+              role: payload.role
+            });
+            setIsEmailVerified(true);
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          // Invalid token format, proceed to verify
+        }
+
         const response = await fetch(`${API_URL}/auth/verify`, {
           headers: { 
             Authorization: `Bearer ${token}`,
@@ -41,20 +60,15 @@ useEffect(() => {
         if (response.ok) {
           const result = await response.json();
           const userData = result.data || result.user || result;
-          
-          console.log('Auth check successful:', userData);
-          
           setUser(userData);
           setIsEmailVerified(userData?.isEmailVerified || false);
         } else {
-          console.log('Auth check failed, clearing token');
           localStorage.removeItem('authToken');
           setUser(null);
         }
       } catch (error) {
         console.error('Auth check error:', error);
-        localStorage.removeItem('authToken');
-        setUser(null);
+        // Don't clear token on network errors
       } finally {
         setLoading(false);
       }

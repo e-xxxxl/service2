@@ -4,6 +4,7 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import AuthShell from './AuthLayout';
+import GoogleButton from './GoogleButton'; // Import the Google button
 
 const Login = () => {
   const navigate = useNavigate();
@@ -27,11 +28,9 @@ const Login = () => {
     try {
       const result = await login(formData);
       
-      // Get user data from response
       const userData = result.user || result.data?.user || result.data;
       const accountType = userData?.accountType || 'customer';
       
-      // Route based on account type
       if (accountType === 'provider') {
         navigate('/provider-dashboard');
       } else {
@@ -125,6 +124,18 @@ const Login = () => {
             <>Sign in <ArrowRight className="w-4 h-4" /></>
           )}
         </button>
+
+        {/* Google Sign-In - accountType is 'customer' for login */}
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-200" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-4 bg-white text-gray-500">or continue with</span>
+          </div>
+        </div>
+
+        <GoogleButton mode="signin" accountType="customer" />
       </form>
     </AuthShell>
   );

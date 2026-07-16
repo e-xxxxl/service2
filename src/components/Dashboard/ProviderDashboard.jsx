@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import logoIcon from "../../assets/dashlogo.png";
 import { useProviderDashboard } from "../../hooks/useProviderDashboard";
+import { SERVICE_CATEGORIES, NIGERIAN_STATES } from "../../constants/serviceCategories";
 
 // Navigation config with all views
 const NAV_CONFIG = [
@@ -480,40 +481,31 @@ function DashboardView({
 
 // Profile View Component
 // In ProviderDashboard.jsx, update the ProfileView component
-function ProfileView({ providerName, companyName, profileCompletion, onUpdateProfile }) {
+// In ProviderDashboard.jsx - Updated ProfileView with verification
+function ProfileView({ providerName, companyName, profileCompletion, verificationStatus, rejectionReason, onUpdateProfile, onResubmit }) {
   const [profileData, setProfileData] = useState({
     companyName: companyName || '',
-    businessDescription: '',
+    serviceType: '',
     tagline: '',
+    businessDescription: '',
     yearsOfExperience: 0,
     teamSize: 1,
-    businessAddress: {
-      street: '',
-      city: '',
-      state: '',
-      zipCode: ''
-    },
-    phone: '',
-    website: '',
-    facebook: '',
-    instagram: '',
-    twitter: '',
-    linkedin: '',
-    whatsapp: ''
+    ninNumber: '',
+    businessAddress: { street: '', city: '', state: '', zipCode: '' },
+    phone: ''
   });
 
-  const [activeSection, setActiveSection] = useState('basic');
+  const [ninDocument, setNinDocument] = useState(null);
+  const [selfiePhoto, setSelfiePhoto] = useState(null);
+  const [activeSection, setActiveSection] = useState('verification');
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
   const sections = [
+    { id: 'verification', label: 'Verification', icon: Shield },
     { id: 'basic', label: 'Basic Info', icon: User },
-    { id: 'business', label: 'Business Details', icon: Briefcase },
-    { id: 'services', label: 'Services & Pricing', icon: DollarSign },
-    { id: 'hours', label: 'Business Hours', icon: Clock },
-    { id: 'documents', label: 'Documents & Verification', icon: CheckCircle2 },
-    { id: 'social', label: 'Social & Links', icon: Globe },
+    { id: 'business', label: 'Address', icon: MapPin },
   ];
 
   const handleSave = async (section) => {
@@ -522,56 +514,38 @@ function ProfileView({ providerName, companyName, profileCompletion, onUpdatePro
     setErrorMessage('');
     
     try {
-      let dataToSave = {};
-      
-      // Prepare data based on section
-      switch(section) {
-        case 'basic':
-          dataToSave = {
-            companyName: profileData.companyName,
-            businessDescription: profileData.businessDescription,
-            tagline: profileData.tagline,
-            yearsOfExperience: profileData.yearsOfExperience,
-            teamSize: profileData.teamSize
-          };
-          break;
-        case 'business':
-          dataToSave = {
-            businessAddress: profileData.businessAddress,
-            phone: profileData.phone
-          };
-          break;
-        case 'social':
-          dataToSave = {
-            website: profileData.website,
-            facebook: profileData.facebook,
-            instagram: profileData.instagram,
-            twitter: profileData.twitter,
-            linkedin: profileData.linkedin,
-            whatsapp: profileData.whatsapp
-          };
-          break;
-        default:
-          dataToSave = profileData;
+      if (section === 'verification') {
+        const formDataToSend = new FormData();
+        formDataToSend.append('serviceType', profileData.serviceType);
+        formDataToSend.append('tagline', profileData.tagline);
+        formDataToSend.append('ninNumber', profileData.ninNumber);
+        formDataToSend.append('city', profileData.businessAddress.city);
+        formDataToSend.append('state', profileData.businessAddress.state);
+        formDataToSend.append('phone', profileData.phone);
+        if (ninDocument) formDataToSend.append('ninDocument', ninDocument);
+        if (selfiePhoto) formDataToSend.append('selfiePhoto', selfiePhoto);
+
+        const token = localStorage.getItem('authToken');
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const res = await fetch(`${API_URL}/provider/setup-profile`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formDataToSend
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+      } else {
+        let dataToSave = {};
+        if (section === 'basic') {
+          dataToSave = { companyName: profileData.companyName, businessDescription: profileData.businessDescription, yearsOfExperience: profileData.yearsOfExperience, teamSize: profileData.teamSize };
+        }
+        await onUpdateProfile?.({ section, data: dataToSave });
       }
       
-      console.log('Saving section:', section, 'Data:', dataToSave);
-      
-      await onUpdateProfile?.({ 
-        section, 
-        data: dataToSave 
-      });
-      
-      setSuccessMessage(`${section.charAt(0).toUpperCase() + section.slice(1)} information updated successfully!`);
-      
-      // Clear success message after 3 seconds
+      setSuccessMessage('Information updated successfully!');
       setTimeout(() => setSuccessMessage(''), 3000);
-      
     } catch (error) {
-      console.error('Save error:', error);
       setErrorMessage(error.message || 'Failed to save changes');
-      
-      // Clear error message after 5 seconds
       setTimeout(() => setErrorMessage(''), 5000);
     } finally {
       setSaving(false);
@@ -580,7 +554,6 @@ function ProfileView({ providerName, companyName, profileCompletion, onUpdatePro
 
   return (
     <div className="px-5 py-6 md:px-8 md:py-8">
-      {/* Success/Error Messages */}
       {successMessage && (
         <div className="mb-4 rounded-lg bg-[#1E7A34]/10 border border-[#1E7A34]/20 px-4 py-3 flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-[#1E7A34]" />
@@ -595,327 +568,172 @@ function ProfileView({ providerName, companyName, profileCompletion, onUpdatePro
         </div>
       )}
 
-      {/* Profile Header */}
-      <div className="mb-8">
-        <div className="relative h-48 rounded-2xl bg-gradient-to-r from-[#1E7A34] to-[#166B2C] overflow-hidden mb-16">
-          <button className="absolute bottom-4 right-4 rounded-lg bg-white/20 backdrop-blur-sm px-4 py-2 text-[13px] font-semibold text-white hover:bg-white/30 transition-colors">
-            <Camera className="h-4 w-4 inline mr-2" />
-            Change Cover
-          </button>
-        </div>
-        
-        <div className="relative px-6">
-          <div className="absolute -top-20 left-6">
-            <div className="relative">
-              <div className="h-32 w-32 rounded-2xl bg-white shadow-lg border-4 border-white flex items-center justify-center">
-                <span className="text-[40px] font-bold text-[#1E7A34] font-['Space_Grotesk',sans-serif]">
-                  {companyName?.[0] || "P"}
-                </span>
-              </div>
-              <button className="absolute bottom-0 right-0 rounded-lg bg-[#1E7A34] p-2 text-white hover:bg-[#166B2C] transition-colors shadow-lg">
-                <Camera className="h-4 w-4" />
-              </button>
-            </div>
+      {/* Verification Status Banner */}
+      <div className={`mb-8 rounded-xl border p-6 ${
+        verificationStatus === 'approved' ? 'bg-[#1E7A34]/5 border-[#1E7A34]/20' :
+        verificationStatus === 'rejected' ? 'bg-red-50 border-red-200' :
+        verificationStatus === 'submitted' ? 'bg-[#FFF8F0] border-[#F0821E]/20' :
+        'bg-white border-[#E2E0D9]'
+      }`}>
+        <div className="flex items-center gap-4">
+          <div className={`h-14 w-14 rounded-full flex items-center justify-center ${
+            verificationStatus === 'approved' ? 'bg-[#1E7A34]/10' :
+            verificationStatus === 'rejected' ? 'bg-red-100' :
+            verificationStatus === 'submitted' ? 'bg-[#F0821E]/10' : 'bg-[#EFEDE6]'
+          }`}>
+            {verificationStatus === 'approved' && <CheckCircle2 className="h-7 w-7 text-[#1E7A34]" />}
+            {verificationStatus === 'rejected' && <X className="h-7 w-7 text-red-500" />}
+            {verificationStatus === 'submitted' && <Clock className="h-7 w-7 text-[#F0821E]" />}
+            {(!verificationStatus || verificationStatus === 'pending') && <AlertTriangle className="h-7 w-7 text-[#9A9488]" />}
           </div>
-          
-          <div className="ml-40">
-            <h1 className="text-[24px] font-semibold font-['Space_Grotesk',sans-serif]">
-              {companyName || "Your Business"}
-            </h1>
-            <p className="text-[14px] text-[#55605A] mt-1">{providerName}</p>
-            <div className="flex items-center gap-4 mt-3">
-              <span className="flex items-center gap-1.5 text-[13px] text-[#1E7A34] font-semibold">
-                <CheckCircle2 className="h-4 w-4" />
-                Verified Provider
-              </span>
-              <span className="text-[13px] text-[#55605A]">
-                Profile {profileCompletion}% complete
-              </span>
-            </div>
+          <div>
+            <h3 className="text-[16px] font-semibold">
+              {verificationStatus === 'approved' ? 'Verified ✓' :
+               verificationStatus === 'rejected' ? 'Verification Rejected' :
+               verificationStatus === 'submitted' ? 'Under Review' : 'Complete Your Profile'}
+            </h3>
+            <p className="text-[13px] text-[#55605A] mt-1">
+              {verificationStatus === 'approved' ? 'Your profile is visible to customers.' :
+               verificationStatus === 'rejected' ? `Reason: ${rejectionReason || 'Not specified'}` :
+               verificationStatus === 'submitted' ? 'Your documents are being reviewed by our team.' :
+               'Fill in the required information below to submit for verification.'}
+            </p>
+            {rejectionReason && verificationStatus === 'rejected' && (
+              <button onClick={onResubmit} className="mt-3 rounded-lg bg-[#1E7A34] px-4 py-2 text-[12px] font-semibold text-white">
+                Resubmit Documents
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Profile Sections */}
+      {/* Section Navigation */}
       <div className="flex gap-6">
-        {/* Section Navigation */}
         <div className="w-[240px] shrink-0">
           <nav className="space-y-1 sticky top-24">
             {sections.map((section) => {
               const Icon = section.icon;
               const isActive = activeSection === section.id;
               return (
-                <button
-                  key={section.id}
-                  onClick={() => {
-                    setActiveSection(section.id);
-                    setSuccessMessage('');
-                    setErrorMessage('');
-                  }}
+                <button key={section.id} onClick={() => { setActiveSection(section.id); setSuccessMessage(''); setErrorMessage(''); }}
                   className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-[13px] font-medium transition-all ${
-                    isActive
-                      ? 'bg-[#1E7A34] text-white shadow-sm'
-                      : 'text-[#55605A] hover:bg-[#F7F6F2]'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {section.label}
+                    isActive ? 'bg-[#1E7A34] text-white shadow-sm' : 'text-[#55605A] hover:bg-[#F7F6F2]'
+                  }`}>
+                  <Icon className="h-4 w-4" /> {section.label}
                 </button>
               );
             })}
           </nav>
         </div>
 
-        {/* Section Content */}
         <div className="flex-1">
+          {/* Verification Section */}
+          {activeSection === 'verification' && (
+            <div className="rounded-xl border border-[#E2E0D9] bg-white p-6">
+              <h2 className="text-[18px] font-semibold font-['Space_Grotesk',sans-serif] mb-6">Verification Required</h2>
+              <p className="text-[13px] text-[#55605A] mb-6">Fill all fields below to submit your profile for verification.</p>
+              
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-[13px] font-semibold mb-2">Service Type *</label>
+                  <select value={profileData.serviceType} onChange={(e) => setProfileData(prev => ({ ...prev, serviceType: e.target.value }))}
+                    className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px]">
+                    <option value="">Select your service</option>
+                    {Object.entries(SERVICE_CATEGORIES).map(([group, services]) => (
+                      <optgroup key={group} label={group}>
+                        {services.map(s => <option key={s} value={s.toLowerCase()}>{s}</option>)}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[13px] font-semibold mb-2">Tagline *</label>
+                  <input type="text" value={profileData.tagline} onChange={(e) => setProfileData(prev => ({ ...prev, tagline: e.target.value }))}
+                    placeholder="A short description of your service" maxLength={200}
+                    className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px]" />
+                </div>
+
+                <div>
+                  <label className="block text-[13px] font-semibold mb-2">NIN Number *</label>
+                  <input type="text" value={profileData.ninNumber} onChange={(e) => setProfileData(prev => ({ ...prev, ninNumber: e.target.value }))}
+                    placeholder="11-digit NIN" maxLength={11}
+                    className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px]" />
+                </div>
+
+                <div>
+                  <label className="block text-[13px] font-semibold mb-2">NIN Document *</label>
+                  <input type="file" accept="image/*,.pdf" onChange={(e) => setNinDocument(e.target.files[0])}
+                    className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px]" />
+                </div>
+
+                <div>
+                  <label className="block text-[13px] font-semibold mb-2">Selfie Photo *</label>
+                  <input type="file" accept="image/*" onChange={(e) => setSelfiePhoto(e.target.files[0])}
+                    className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px]" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-2">State *</label>
+                    <input type="text" value={profileData.businessAddress.state} onChange={(e) => setProfileData(prev => ({ ...prev, businessAddress: { ...prev.businessAddress, state: e.target.value } }))}
+                      className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px]" />
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-2">City *</label>
+                    <input type="text" value={profileData.businessAddress.city} onChange={(e) => setProfileData(prev => ({ ...prev, businessAddress: { ...prev.businessAddress, city: e.target.value } }))}
+                      className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px]" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[13px] font-semibold mb-2">Phone *</label>
+                  <input type="tel" value={profileData.phone} onChange={(e) => setProfileData(prev => ({ ...prev, phone: e.target.value }))}
+                    className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px]" />
+                </div>
+              </div>
+
+              <div className="mt-8 flex justify-end">
+                <button onClick={() => handleSave('verification')} disabled={saving}
+                  className="rounded-lg bg-[#F0821E] px-6 py-3 text-[14px] font-semibold text-white hover:bg-[#D5720F] disabled:opacity-50 flex items-center gap-2">
+                  {saving ? 'Submitting...' : 'Submit for Verification'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Basic Section */}
           {activeSection === 'basic' && (
             <div className="rounded-xl border border-[#E2E0D9] bg-white p-6">
-              <h2 className="text-[18px] font-semibold font-['Space_Grotesk',sans-serif] mb-6">
-                Basic Information
-              </h2>
-              
-              <div className="space-y-6">
+              <h2 className="text-[18px] font-semibold mb-6">Basic Information</h2>
+              <div className="space-y-5">
                 <div>
-                  <label className="block text-[13px] font-semibold text-[#1E2420] mb-2">
-                    Company Name
-                  </label>
-                  <input
-                    type="text"
-                    value={profileData.companyName}
-                    onChange={(e) => setProfileData(prev => ({ ...prev, companyName: e.target.value }))}
-                    className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34] focus:ring-1 focus:ring-[#1E7A34]/20"
-                    placeholder="Your company name"
-                  />
+                  <label className="block text-[13px] font-semibold mb-2">Company Name</label>
+                  <input type="text" value={profileData.companyName} onChange={(e) => setProfileData(prev => ({ ...prev, companyName: e.target.value }))}
+                    className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px]" />
                 </div>
-
                 <div>
-                  <label className="block text-[13px] font-semibold text-[#1E2420] mb-2">
-                    Tagline
-                  </label>
-                  <input
-                    type="text"
-                    value={profileData.tagline}
-                    onChange={(e) => setProfileData(prev => ({ ...prev, tagline: e.target.value }))}
-                    className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34] focus:ring-1 focus:ring-[#1E7A34]/20"
-                    placeholder="A short description of your business"
-                  />
+                  <label className="block text-[13px] font-semibold mb-2">Business Description</label>
+                  <textarea rows={4} value={profileData.businessDescription} onChange={(e) => setProfileData(prev => ({ ...prev, businessDescription: e.target.value }))}
+                    className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px] resize-none" />
                 </div>
-
-                <div>
-                  <label className="block text-[13px] font-semibold text-[#1E2420] mb-2">
-                    Business Description
-                  </label>
-                  <textarea
-                    value={profileData.businessDescription}
-                    onChange={(e) => setProfileData(prev => ({ ...prev, businessDescription: e.target.value }))}
-                    rows={4}
-                    className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34] focus:ring-1 focus:ring-[#1E7A34]/20 resize-none"
-                    placeholder="Describe your business, experience, and what makes you unique..."
-                  />
-                </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[13px] font-semibold text-[#1E2420] mb-2">
-                      Years of Experience
-                    </label>
-                    <input
-                      type="number"
-                      value={profileData.yearsOfExperience}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, yearsOfExperience: parseInt(e.target.value) || 0 }))}
-                      className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34] focus:ring-1 focus:ring-[#1E7A34]/20"
-                      placeholder="0"
-                    />
+                    <label className="block text-[13px] font-semibold mb-2">Years of Experience</label>
+                    <input type="number" value={profileData.yearsOfExperience} onChange={(e) => setProfileData(prev => ({ ...prev, yearsOfExperience: parseInt(e.target.value) || 0 }))}
+                      className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px]" />
                   </div>
                   <div>
-                    <label className="block text-[13px] font-semibold text-[#1E2420] mb-2">
-                      Team Size
-                    </label>
-                    <input
-                      type="number"
-                      value={profileData.teamSize}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, teamSize: parseInt(e.target.value) || 1 }))}
-                      className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34] focus:ring-1 focus:ring-[#1E7A34]/20"
-                      placeholder="1"
-                    />
+                    <label className="block text-[13px] font-semibold mb-2">Team Size</label>
+                    <input type="number" value={profileData.teamSize} onChange={(e) => setProfileData(prev => ({ ...prev, teamSize: parseInt(e.target.value) || 1 }))}
+                      className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px]" />
                   </div>
                 </div>
               </div>
-
-              <div className="mt-8 flex justify-end gap-3">
-                <button
-                  onClick={() => setActiveSection('basic')}
-                  className="rounded-lg border border-[#E2E0D9] px-6 py-3 text-[14px] font-semibold text-[#55605A] hover:bg-[#F7F6F2] transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleSave('basic')}
-                  disabled={saving}
-                  className="rounded-lg bg-[#1E7A34] px-6 py-3 text-[14px] font-semibold text-white hover:bg-[#166B2C] transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {saving ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {activeSection === 'business' && (
-            <div className="rounded-xl border border-[#E2E0D9] bg-white p-6">
-              <h2 className="text-[18px] font-semibold font-['Space_Grotesk',sans-serif] mb-6">
-                Business Details
-              </h2>
-              
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[13px] font-semibold text-[#1E2420] mb-2">
-                      Street Address
-                    </label>
-                    <input
-                      type="text"
-                      value={profileData.businessAddress.street}
-                      onChange={(e) => setProfileData(prev => ({
-                        ...prev,
-                        businessAddress: { ...prev.businessAddress, street: e.target.value }
-                      }))}
-                      className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34] focus:ring-1 focus:ring-[#1E7A34]/20"
-                      placeholder="123 Main Street"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[13px] font-semibold text-[#1E2420] mb-2">
-                      City
-                    </label>
-                    <input
-                      type="text"
-                      value={profileData.businessAddress.city}
-                      onChange={(e) => setProfileData(prev => ({
-                        ...prev,
-                        businessAddress: { ...prev.businessAddress, city: e.target.value }
-                      }))}
-                      className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34] focus:ring-1 focus:ring-[#1E7A34]/20"
-                      placeholder="Lagos"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[13px] font-semibold text-[#1E2420] mb-2">
-                      State
-                    </label>
-                    <input
-                      type="text"
-                      value={profileData.businessAddress.state}
-                      onChange={(e) => setProfileData(prev => ({
-                        ...prev,
-                        businessAddress: { ...prev.businessAddress, state: e.target.value }
-                      }))}
-                      className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34] focus:ring-1 focus:ring-[#1E7A34]/20"
-                      placeholder="Lagos State"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[13px] font-semibold text-[#1E2420] mb-2">
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      value={profileData.phone}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, phone: e.target.value }))}
-                      className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34] focus:ring-1 focus:ring-[#1E7A34]/20"
-                      placeholder="+234 800 000 0000"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-8 flex justify-end gap-3">
-                <button
-                  onClick={() => setActiveSection('business')}
-                  className="rounded-lg border border-[#E2E0D9] px-6 py-3 text-[14px] font-semibold text-[#55605A] hover:bg-[#F7F6F2] transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleSave('business')}
-                  disabled={saving}
-                  className="rounded-lg bg-[#1E7A34] px-6 py-3 text-[14px] font-semibold text-white hover:bg-[#166B2C] transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {saving ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {activeSection === 'social' && (
-            <div className="rounded-xl border border-[#E2E0D9] bg-white p-6">
-              <h2 className="text-[18px] font-semibold font-['Space_Grotesk',sans-serif] mb-6">
-                Social Media & Links
-              </h2>
-              
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  {[
-                    { key: 'website', label: 'Website', icon: Globe, placeholder: 'https://yourwebsite.com' },
-                    { key: 'facebook', label: 'Facebook', icon: ExternalLink, placeholder: 'https://facebook.com/yourpage' },
-                    { key: 'instagram', label: 'Instagram', icon: Camera, placeholder: 'https://instagram.com/yourhandle' },
-                    { key: 'twitter', label: 'Twitter', icon: AtSign, placeholder: 'https://twitter.com/yourhandle' },
-                    { key: 'linkedin', label: 'LinkedIn', icon: Link, placeholder: 'https://linkedin.com/in/yourprofile' },
-                    { key: 'whatsapp', label: 'WhatsApp', icon: Phone, placeholder: '+234 800 000 0000' },
-                  ].map(({ key, label, icon: Icon, placeholder }) => (
-                    <div key={key}>
-                      <label className="flex items-center gap-2 text-[13px] font-semibold text-[#1E2420] mb-2">
-                        <Icon className="h-4 w-4" />
-                        {label}
-                      </label>
-                      <input
-                        type="text"
-                        value={profileData[key]}
-                        onChange={(e) => setProfileData(prev => ({ ...prev, [key]: e.target.value }))}
-                        className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34] focus:ring-1 focus:ring-[#1E7A34]/20"
-                        placeholder={placeholder}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-8 flex justify-end gap-3">
-                <button
-                  onClick={() => setActiveSection('social')}
-                  className="rounded-lg border border-[#E2E0D9] px-6 py-3 text-[14px] font-semibold text-[#55605A] hover:bg-[#F7F6F2] transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleSave('social')}
-                  disabled={saving}
-                  className="rounded-lg bg-[#1E7A34] px-6 py-3 text-[14px] font-semibold text-white hover:bg-[#166B2C] transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {saving ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
+              <div className="mt-8 flex justify-end">
+                <button onClick={() => handleSave('basic')} disabled={saving}
+                  className="rounded-lg bg-[#1E7A34] px-6 py-3 text-[14px] font-semibold text-white hover:bg-[#166B2C] disabled:opacity-50">
+                  {saving ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </div>
@@ -957,7 +775,7 @@ function MessagesView({
   const fetchMessages = async (conversationId) => {
     try {
       const token = localStorage.getItem('authToken');
-      const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const res = await fetch(`${API_URL}/provider/messages`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -986,7 +804,7 @@ function MessagesView({
     setSending(true);
     try {
       const token = localStorage.getItem('authToken');
-      const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       
       const response = await fetch(`${API_URL}/provider/messages/${selectedConversation.customerId}`, {
         method: 'POST',

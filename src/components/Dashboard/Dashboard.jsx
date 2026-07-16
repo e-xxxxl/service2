@@ -24,17 +24,19 @@ import {
 } from "lucide-react";
 import logoIcon from "../../assets/dashlogo.png";
 import { useCustomerDashboard } from "../../hooks/useCustomerDashboard";
+import { SERVICE_CATEGORIES, FLAT_SERVICES } from "../../constants/serviceCategories";
 
-const DEFAULT_CATEGORIES = [
-  "Plumbing",
-  "Electrical",
-  "Carpentry",
-  "AC Repair & Installation",
-  "Painting",
-  "Tiling",
-  "Generator Repair",
-  "Cleaning",
-];
+const DEFAULT_CATEGORIES = FLAT_SERVICES;
+// const DEFAULT_CATEGORIES = [
+//   "Plumbing",
+//   "Electrical",
+//   "Carpentry",
+//   "AC Repair & Installation",
+//   "Painting",
+//   "Tiling",
+//   "Generator Repair",
+//   "Cleaning",
+// ];
 const DEFAULT_STATES = [
   "Lagos",
   "Abuja (FCT)",
@@ -266,7 +268,7 @@ function MessagesTab({
     try {
       const token = localStorage.getItem("authToken");
       const API_URL =
-        import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+        import.meta.env.VITE_API_URL || "http://localhost:5000/api";
       const res = await fetch(
         `${API_URL}/customer/messages/${conversationId}`,
         {
@@ -752,16 +754,21 @@ export default function Dashboard({
                   Find a trusted professional near you
                 </p>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="rounded-md border border-[#E2E0D9] bg-[#FBFAF8] px-3 py-2.5 text-[13px]"
-                  >
-                    <option value="">Service category</option>
-                    {categories.map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </select>
+                
+<select
+  value={category}
+  onChange={(e) => setCategory(e.target.value)}
+  className="rounded-md border border-[#E2E0D9] bg-[#FBFAF8] px-3 py-2.5 text-[13px]"
+>
+  <option value="">Service category</option>
+  {Object.entries(SERVICE_CATEGORIES).map(([groupName, services]) => (
+    <optgroup key={groupName} label={groupName}>
+      {services.map((c) => (
+        <option key={c} value={c}>{c}</option>
+      ))}
+    </optgroup>
+  ))}
+</select>
                   <select
                     value={state}
                     onChange={(e) => {

@@ -6,6 +6,8 @@ import { useAuth } from '../../context/AuthContext';
 import EmailVerification from './EmailVerification';
 import AuthShell from './AuthLayout';
 import Navbar from '../Navbar/Navbar';
+import GoogleButton from './GoogleButton';
+import { SERVICE_CATEGORIES, NIGERIAN_STATES } from '../../constants/serviceCategories';
 
 const PASSWORD_RULES = [
   { key: 'minLength', label: 'At least 8 characters', test: (p) => p.length >= 8 },
@@ -76,7 +78,7 @@ const SignUp = () => {
   setLoading(true);
 
   try {
-    const response = await fetch('https://service-server-e64r.onrender.com/api/auth/signup', {
+    const response = await fetch('http://localhost:5000/api/auth/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...formData, accountType }),
@@ -202,22 +204,17 @@ const SignUp = () => {
 
         {/* Provider Fields */}
     
-{accountType === 'provider' && (
+  {accountType === 'provider' && (
   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-    {/* Existing fields */}
     <div className="md:col-span-2">
       <label htmlFor="companyName" className="block text-sm font-medium text-[#2d333f] mb-1.5">
         Company name
       </label>
       <input
-        id="companyName"
-        type="text"
-        name="companyName"
-        value={formData.companyName}
-        onChange={handleChange}
-        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#f06d00] focus:ring-1 focus:ring-[#f06d00]/20 transition-all"
-        placeholder="Ellis Plumbing Co."
-        required
+        id="companyName" type="text" name="companyName"
+        value={formData.companyName} onChange={handleChange}
+        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm"
+        placeholder="Ellis Plumbing Co." required
       />
     </div>
 
@@ -226,18 +223,20 @@ const SignUp = () => {
         Service type
       </label>
       <select
-        id="serviceType"
-        name="serviceType"
-        value={formData.serviceType}
-        onChange={handleChange}
-        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#f06d00] focus:ring-1 focus:ring-[#f06d00]/20 transition-all"
+        id="serviceType" name="serviceType"
+        value={formData.serviceType} onChange={handleChange}
+        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm"
         required
       >
         <option value="">Select a service</option>
-        {SERVICES.map((service) => (
-          <option key={service} value={service.toLowerCase()}>
-            {service}
-          </option>
+        {Object.entries(SERVICE_CATEGORIES).map(([groupName, services]) => (
+          <optgroup key={groupName} label={groupName}>
+            {services.map((service) => (
+              <option key={service} value={service.toLowerCase()}>
+                {service}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
     </div>
@@ -247,32 +246,25 @@ const SignUp = () => {
         Phone number
       </label>
       <input
-        id="phone"
-        type="tel"
-        name="phone"
-        value={formData.phone}
-        onChange={handleChange}
-        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#f06d00] focus:ring-1 focus:ring-[#f06d00]/20 transition-all"
-        placeholder="(555) 123-4567"
-        required
+        id="phone" type="tel" name="phone"
+        value={formData.phone} onChange={handleChange}
+        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm"
+        placeholder="(555) 123-4567" required
       />
     </div>
 
-    {/* NEW: Location Fields */}
     <div>
       <label htmlFor="state" className="block text-sm font-medium text-[#2d333f] mb-1.5">
         State
       </label>
       <select
-        id="state"
-        name="state"
-        value={formData.state || ''}
-        onChange={handleChange}
-        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#f06d00] focus:ring-1 focus:ring-[#f06d00]/20 transition-all"
+        id="state" name="state"
+        value={formData.state || ''} onChange={handleChange}
+        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm"
         required
       >
         <option value="">Select state</option>
-        {['Lagos', 'Abuja (FCT)', 'Rivers', 'Oyo', 'Kano', 'Delta', 'Edo', 'Enugu', 'Kaduna', 'Other'].map(state => (
+        {NIGERIAN_STATES.map(state => (
           <option key={state} value={state}>{state}</option>
         ))}
       </select>
@@ -283,14 +275,10 @@ const SignUp = () => {
         City
       </label>
       <input
-        id="city"
-        type="text"
-        name="city"
-        value={formData.city || ''}
-        onChange={handleChange}
-        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#f06d00] focus:ring-1 focus:ring-[#f06d00]/20 transition-all"
-        placeholder="Ikeja, Lekki, etc."
-        required
+        id="city" type="text" name="city"
+        value={formData.city || ''} onChange={handleChange}
+        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm"
+        placeholder="Ikeja, Lekki, etc." required
       />
     </div>
   </div>
@@ -379,7 +367,16 @@ const SignUp = () => {
             </a>
           </label>
         </div>
+<div className="relative my-6">
+  <div className="absolute inset-0 flex items-center">
+    <div className="w-full border-t border-gray-200" />
+  </div>
+  <div className="relative flex justify-center text-sm">
+    <span className="px-4 bg-white text-gray-500">or continue with</span>
+  </div>
+</div>
 
+<GoogleButton mode="signin" accountType={accountType || 'customer'} />
         {/* Submit */}
         <button
           type="submit"
