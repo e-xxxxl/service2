@@ -1,10 +1,11 @@
 // components/admin/AdminLogin.jsx
 import { useState } from "react";
-import { Shield, Mail, Lock, ArrowRight } from "lucide-react";
+import { Shield, Mail, Lock, ArrowRight, Eye, EyeOff } from "lucide-react";
 
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -47,8 +48,14 @@ export default function AdminLogin() {
             <label className="block text-[13px] font-semibold text-[#1E2420] mb-2">Email</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9A9488]" />
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#E2E0D9] text-[14px] focus:outline-none focus:border-[#F0821E]" placeholder="admin@example.com" />
+              <input 
+                type="email" 
+                value={email} 
+                onChange={e => setEmail(e.target.value)} 
+                required
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#E2E0D9] text-[14px] focus:outline-none focus:border-[#F0821E] focus:ring-1 focus:ring-[#F0821E]/20 transition-all" 
+                placeholder="admin@example.com" 
+              />
             </div>
           </div>
 
@@ -56,14 +63,37 @@ export default function AdminLogin() {
             <label className="block text-[13px] font-semibold text-[#1E2420] mb-2">Password</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9A9488]" />
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#E2E0D9] text-[14px] focus:outline-none focus:border-[#F0821E]" placeholder="••••••••" />
+              <input 
+                type={showPassword ? "text" : "password"} 
+                value={password} 
+                onChange={e => setPassword(e.target.value)} 
+                required
+                className="w-full pl-10 pr-12 py-3 rounded-xl border border-[#E2E0D9] text-[14px] focus:outline-none focus:border-[#F0821E] focus:ring-1 focus:ring-[#F0821E]/20 transition-all" 
+                placeholder="••••••••" 
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9A9488] hover:text-[#55605A] transition-colors"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
           </div>
 
-          <button type="submit" disabled={loading}
+          <button 
+            type="submit" 
+            disabled={loading}
             className="w-full bg-[#F0821E] hover:bg-[#D5720F] text-white py-3.5 rounded-xl text-[14px] font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
-            {loading ? 'Signing in...' : <>Sign In <ArrowRight className="h-4 w-4" /></>}
+            {loading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Signing in...
+              </>
+            ) : (
+              <>Sign In <ArrowRight className="h-4 w-4" /></>
+            )}
           </button>
         </form>
       </div>
