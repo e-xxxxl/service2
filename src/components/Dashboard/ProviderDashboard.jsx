@@ -526,7 +526,7 @@ function ProfileView({ providerName, companyName, profileCompletion, verificatio
         if (selfiePhoto) formDataToSend.append('selfiePhoto', selfiePhoto);
 
         const token = localStorage.getItem('authToken');
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
         const res = await fetch(`${API_URL}/provider/setup-profile`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
@@ -775,7 +775,7 @@ function MessagesView({
   const fetchMessages = async (conversationId) => {
     try {
       const token = localStorage.getItem('authToken');
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
       const res = await fetch(`${API_URL}/provider/messages`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -804,7 +804,7 @@ function MessagesView({
     setSending(true);
     try {
       const token = localStorage.getItem('authToken');
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
       
       const response = await fetch(`${API_URL}/provider/messages/${selectedConversation.customerId}`, {
         method: 'POST',

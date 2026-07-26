@@ -9,13 +9,14 @@ export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = async (e) => {
+// components/admin/AdminLogin.jsx - Save admin token separately
+const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/admin/login`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api'}/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -23,7 +24,8 @@ export default function AdminLogin() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       
-      localStorage.setItem('authToken', data.token);
+      // ✅ Save admin token with a DIFFERENT key
+      localStorage.setItem('adminAuthToken', data.token);
       window.location.href = '/admin/dashboard';
     } catch (err) {
       setError(err.message);

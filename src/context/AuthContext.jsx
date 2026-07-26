@@ -16,39 +16,30 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isEmailVerified, setIsEmailVerified] = useState(false);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
 
   // Check existing session
   // context/AuthContext.jsx - Update checkAuth
 // context/AuthContext.jsx - Update checkAuth
+// context/AuthContext.jsx - Update checkAuth
 useEffect(() => {
     const checkAuth = async () => {
       try {
+        // ✅ Only check regular auth token, not admin token
         const token = localStorage.getItem('authToken');
         if (!token) {
           setLoading(false);
           return;
         }
 
-        // Skip verification for admin tokens
+        // Skip if it's somehow an admin token (shouldn't happen with separate keys)
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
           if (payload.accountType === 'admin') {
-            console.log('Admin token detected, skipping auth verify');
-            setUser({
-              _id: payload.id,
-              email: payload.email,
-              accountType: 'admin',
-              fullName: payload.fullName,
-              role: payload.role
-            });
-            setIsEmailVerified(true);
             setLoading(false);
             return;
           }
-        } catch (e) {
-          // Invalid token format, proceed to verify
-        }
+        } catch (e) {}
 
         const response = await fetch(`${API_URL}/auth/verify`, {
           headers: { 
@@ -68,7 +59,6 @@ useEffect(() => {
         }
       } catch (error) {
         console.error('Auth check error:', error);
-        // Don't clear token on network errors
       } finally {
         setLoading(false);
       }

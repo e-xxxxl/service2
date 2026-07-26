@@ -1,10 +1,9 @@
 import React from 'react';
 import { Mail, ArrowRight } from 'lucide-react';
-import  navlogo  from '../../assets/navlogoo.png';
+import navlogo from '../../assets/navlogoo.png';
 import { Link } from 'react-router-dom';
-// lucide-react no longer ships brand/logo icons (Facebook, Instagram, LinkedIn, etc.)
-// since those are trademarked logos, not generic icons — so these are small inline
-// SVGs instead of a package import that may not exist in your installed version.
+
+// Brand Icons (same as before)
 const FacebookIcon = (props) => (
   <svg viewBox="0 0 24 24" fill="currentColor" width={16} height={16} {...props}>
     <path d="M22 12.06C22 6.51 17.52 2 12 2S2 6.51 2 12.06c0 5.02 3.66 9.18 8.44 9.94v-7.03H7.9v-2.91h2.54V9.85c0-2.51 1.49-3.9 3.77-3.9 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.89h2.78l-.44 2.91h-2.34V22c4.78-.76 8.44-4.92 8.44-9.94Z" />
@@ -25,22 +24,42 @@ const LinkedinIcon = (props) => (
   </svg>
 );
 
+// ✅ Link data with actual routes
 const linkColumns = [
   {
     heading: 'For customers',
-    links: ['Search professionals', 'How it works', 'Reviews', 'Help centre'],
+    links: [
+      { label: 'Search professionals', to: '/dashboard' },
+      { label: 'How it works', to: '/how-it-works' },
+      { label: 'Reviews', to: '/reviews' },
+      { label: 'Help centre', to: '/help' },
+    ],
   },
   {
     heading: 'For providers',
-    links: ['Create a profile', 'How messaging works', 'Pricing', 'Provider resources'],
+    links: [
+      { label: 'Create a profile', to: '/signup' },
+      // { label: 'How messaging works', to: '/provider-guide' },
+      // { label: 'Pricing', to: '/pricing' },
+      // { label: 'Provider resources', to: '/provider-resources' },
+    ],
   },
   {
     heading: 'Company',
-    links: ['About us', 'Careers', 'Press', 'Contact us'],
+    links: [
+      { label: 'About us', to: '/about' },
+      // { label: 'Careers', to: '/careers' },
+      // { label: 'Press', to: '/press' },
+      // { label: 'Contact us', to: '/contact' },
+    ],
   },
   {
     heading: 'Legal',
-    links: ['Terms of service', 'Privacy policy', 'Trust & safety'],
+    links: [
+      { label: 'Terms of service', to: '/terms-of-service' },
+      { label: 'Privacy policy', to: '/privacy-policy' },
+
+    ],
   },
 ];
 
@@ -78,46 +97,48 @@ const Footer = () => {
       {/* Link columns */}
       <div className="max-w-6xl mx-auto px-5 sm:px-8 py-14">
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-10">
+          {/* Brand column */}
           <div className="col-span-2 lg:col-span-1">
             <div className="flex items-center mb-4">
-             <Link to="/ ">
-                             <div className="">
-                               <img
-                                 src={navlogo}
-                                 alt="Logo"
-                                 className="h-18 w-auto object-contain"
-                               />
-                             </div>
-                           </Link>
+              <Link to="/">
+                <div>
+                  <img
+                    src={navlogo}
+                    alt="Logo"
+                    className="h-18 w-auto object-contain"
+                  />
+                </div>
+              </Link>
             </div>
             <p className="text-sm text-white/50 leading-relaxed mb-5 max-w-[220px]">
               Search, browse profiles, and message verified service providers directly.
             </p>
             <div className="flex gap-3">
-              <a href="#" aria-label="Facebook" className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+              <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
                 <FacebookIcon />
               </a>
-              <a href="#" aria-label="Instagram" className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
                 <InstagramIcon />
               </a>
-              <a href="#" aria-label="LinkedIn" className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
-                <LinkedinIcon />
-              </a>
-              <a href="mailto:hello@9jatradiespages.example" aria-label="Email" className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+              <a href="mailto:hello@9jatradiespages.com" aria-label="Email" className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
                 <Mail size={16} />
               </a>
             </div>
           </div>
 
+          {/* Link Columns - ✅ Now using Link component */}
           {linkColumns.map((column) => (
             <div key={column.heading}>
               <h4 className="text-white font-semibold text-sm mb-4">{column.heading}</h4>
               <ul className="flex flex-col gap-3">
                 {column.links.map((link) => (
-                  <li key={link}>
-                    <a href="#" className="text-sm text-white/50 hover:text-white transition-colors">
-                      {link}
-                    </a>
+                  <li key={link.label}>
+                    <Link
+                      to={link.to}
+                      className="text-sm text-white/50 hover:text-white transition-colors"
+                    >
+                      {link.label}
+                    </Link>
                   </li>
                 ))}
               </ul>

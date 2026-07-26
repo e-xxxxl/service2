@@ -38,7 +38,7 @@ export default function ProviderSetup() {
   const [ninPreview, setNinPreview] = useState(null);
   const [selfiePreview, setSelfiePreview] = useState(null);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
 
   const handleChange = (e) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));

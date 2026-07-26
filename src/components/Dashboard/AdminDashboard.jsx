@@ -32,8 +32,8 @@ export default function AdminDashboard() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile sidebar
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-  const token = localStorage.getItem('authToken');
+  const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
+const token = localStorage.getItem('adminAuthToken');
 
   const showMessage = (setter, msg) => { setter(msg); setTimeout(() => setter(''), 4000); };
 
@@ -124,8 +124,9 @@ export default function AdminDashboard() {
     } catch (err) { showMessage(setError, err.message); }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('authToken');
+// In AdminDashboard.jsx - handleLogout
+const handleLogout = () => {
+    localStorage.removeItem('adminAuthToken'); // ✅ Remove admin token only
     window.location.href = '/admin/login';
   };
 
