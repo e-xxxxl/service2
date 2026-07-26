@@ -6,10 +6,10 @@ const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const navLinks = [
-    { name: 'About', path: '/directory' },
-    { name: 'Contact', path: '/cost-guides' },
-    { name: 'Energy', path: '/energy' },
-    { name: 'FAQ', path: '/energy' },
+    { name: 'About', path: '/about' },
+    { name: 'Contact', path: '/contact' },
+    // { name: 'Energy', path: '/energy' },
+    { name: 'FAQ', path: '/faq' },
   ];
 
   const linkClass = ({ isActive }) =>

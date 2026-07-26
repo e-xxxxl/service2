@@ -16,6 +16,9 @@ import ComingSoon from "./components/Dashboard/ComingSoon.jsx";
 import PrivacyPolicy from "./components/Legal/PrivacyPolicy.jsx";
 import TermsOfService from "./components/Legal/TermsOfService.jsx";
 import HomePage from "./Pages/HomePage.jsx";
+import AboutUs from "./Pages/AboutUs.jsx";
+import FAQ from "./Pages/FAQ.jsx";
+import Contact from "./Pages/Contact.jsx";
 
 function App() {
   return (
@@ -44,8 +47,11 @@ function App() {
               <AuthProvider>
                 <Routes>
                   {/* ---------- Public Pages ---------- */}
-                  <Route path="/" element={<ComingSoon />} />
-                  {/* <Route path="/" element={<HomePage/>} /> */}
+                  {/* <Route path="/" element={<ComingSoon />} /> */}
+                  <Route path="/" element={<HomePage/>} />
+                  <Route path="/about" element={<AboutUs/>} />
+                  <Route path="/faq" element={<FAQ/>} />
+                  <Route path="/contact" element={<Contact/>} />
                   <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                   <Route path="/terms-of-service" element={<TermsOfService />} />
 
