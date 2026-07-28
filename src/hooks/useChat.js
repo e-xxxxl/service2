@@ -19,7 +19,7 @@ export function useChat() {
   const sendMessage = async (conversationId, recipientId, text) => {
     try {
       const token = localStorage.getItem('authToken');
-      const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       
       const isProvider = localStorage.getItem('userAccountType') === 'provider';
       const endpoint = isProvider 
