@@ -1,5 +1,5 @@
 // services/api.js
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
 
 async function request(path, options = {}) {
   const token = localStorage.getItem('authToken') || localStorage.getItem('token');
@@ -33,6 +33,8 @@ export const api = {
     const url = queryString ? `/customer/search?${queryString}` : '/customer/search';
     return request(url);
   },
+
+    getProviderProfile: (id) => request(`/customer/provider/${id}`),
   
   toggleFavorite: (proId) => request(`/customer/favorites/${proId}`, { method: 'POST' }),
   
