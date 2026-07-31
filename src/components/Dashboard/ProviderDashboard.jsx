@@ -634,7 +634,7 @@ function ProfileView({
         if (selfiePhoto) fd.append("selfiePhoto", selfiePhoto);
         const token = localStorage.getItem("authToken");
         const API_URL =
-          import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+          import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
         const res = await fetch(`${API_URL}/provider/setup-profile`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
@@ -1204,7 +1204,7 @@ function MessagesView({
     try {
       const token = localStorage.getItem("authToken");
       const API_URL =
-        import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+        import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
       const res = await fetch(`${API_URL}/provider/messages`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1232,7 +1232,7 @@ function MessagesView({
     try {
       const token = localStorage.getItem("authToken");
       const API_URL =
-        import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+        import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
       const res = await fetch(
         `${API_URL}/provider/messages/${selectedConversation.customerId}`,
         {

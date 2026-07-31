@@ -72,7 +72,7 @@ export default function AdminDashboard() {
     role: "admin",
   });
 
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+  const API_URL = import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
   const token = localStorage.getItem("adminAuthToken");
 
   const showMessage = (setter, msg) => {

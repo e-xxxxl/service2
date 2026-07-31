@@ -16,7 +16,7 @@ const handleSubmit = async (e) => {
     setError("");
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/admin/login`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api'}/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
