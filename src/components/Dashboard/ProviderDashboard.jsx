@@ -16,9 +16,7 @@ import {
   MapPin,
   ToggleLeft,
   ToggleRight,
-  Camera,
   X,
-  Phone,
   MessageSquare,
   Send,
   Search,
@@ -27,12 +25,22 @@ import {
   AlertCircle,
   RefreshCw,
   ArrowRight,
-  Mail,
+  Calculator,
+  Wrench,
+  Package,
+  CreditCard,
+  XCircle,
+  Edit,
+  Save,
+  Eye,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import logoIcon from "../../assets/dashlogo.png";
 import { useProviderDashboard } from "../../hooks/useProviderDashboard";
-import { SERVICE_CATEGORIES } from "../../constants/serviceCategories";
+import {
+  SERVICE_CATEGORIES,
+  CITIES_BY_STATE,
+} from "../../constants/serviceCategories";
 
 const NAV_CONFIG = [
   { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
@@ -51,6 +59,39 @@ const NAV_CONFIG = [
   { id: "profile", label: "Profile", icon: User },
 ];
 
+// ========== HELPERS ==========
+const formatNigerianTime = (dateStr) => {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString("en-NG", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "Africa/Lagos",
+    });
+  } catch {
+    return "";
+  }
+};
+const formatNigerianDate = (dateStr) => {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    const now = new Date();
+    const diff = now - d;
+    if (diff < 60000) return "Just now";
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    if (diff < 172800000) return "Yesterday";
+    return d.toLocaleDateString("en-NG", { day: "numeric", month: "short" });
+  } catch {
+    return "";
+  }
+};
+
 export default function ProviderDashboard({ onLogout }) {
   const navigate = useNavigate();
   const {
@@ -59,7 +100,6 @@ export default function ProviderDashboard({ onLogout }) {
     profileCompletion,
     verificationStatus,
     rejectionReason,
-    isVisible,
     activeJobs,
     recentMessages,
     notifications,
@@ -72,10 +112,16 @@ export default function ProviderDashboard({ onLogout }) {
     respondToJob,
   } = useProviderDashboard();
 
-  const [activeView, setActiveView] = useState("dashboard");
+  const [activeView, setActiveView] = useState(
+    () => sessionStorage.getItem("pvActiveView") || "dashboard",
+  );
   const [isAvailable, setIsAvailable] = useState(true);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [newMessage, setNewMessage] = useState("");
+
+  useEffect(() => {
+    sessionStorage.setItem("pvActiveView", activeView);
+  }, [activeView]);
 
   const unreadMessages = (recentMessages || []).filter((m) => m.unread).length;
   const unreadNotifications = (notifications || []).filter(
@@ -91,13 +137,11 @@ export default function ProviderDashboard({ onLogout }) {
     localStorage.removeItem("userAccountType");
     window.location.href = "/login";
   };
-
   const handleResubmit = () => navigate("/provider/setup?resubmit=true");
 
   return (
     <div className="min-h-screen w-full bg-[#F5F4F0] text-[#1E2420] font-['Inter',sans-serif]">
       <div className="mx-auto flex max-w-[1400px]">
-        {/* Sidebar */}
         <aside className="sticky top-0 hidden h-screen w-[240px] shrink-0 flex-col justify-between border-r border-[#E2E0D9] bg-white px-4 py-6 md:flex">
           <div>
             <div className="mb-8 flex items-center gap-3 px-2">
@@ -107,7 +151,7 @@ export default function ProviderDashboard({ onLogout }) {
                 className="h-8 w-8 shrink-0 object-contain"
               />
               <div>
-                <span className="text-[14px] font-semibold font-['Space_Grotesk',sans-serif]">
+                <span className="text-[14px] font-semibold">
                   9jaTradiesPages
                 </span>
                 <p className="text-[10px] text-[#9A9488]">Provider Portal</p>
@@ -122,11 +166,7 @@ export default function ProviderDashboard({ onLogout }) {
                   <button
                     key={item.id}
                     onClick={() => setActiveView(item.id)}
-                    className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all ${
-                      isActive
-                        ? "bg-[#1E7A34] text-white shadow-sm"
-                        : "text-[#55605A] hover:bg-[#F7F6F2] hover:text-[#1E2420]"
-                    }`}
+                    className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all ${isActive ? "bg-[#1E7A34] text-white shadow-sm" : "text-[#55605A] hover:bg-[#F7F6F2] hover:text-[#1E2420]"}`}
                   >
                     <span className="flex items-center gap-3">
                       <Icon className="h-4 w-4" />
@@ -134,11 +174,7 @@ export default function ProviderDashboard({ onLogout }) {
                     </span>
                     {badge > 0 && (
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                          isActive
-                            ? "bg-[#F0821E] text-white"
-                            : "bg-[#FBE0C4] text-[#B85E10]"
-                        }`}
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive ? "bg-[#F0821E] text-white" : "bg-[#FBE0C4] text-[#B85E10]"}`}
                       >
                         {badge}
                       </span>
@@ -148,19 +184,9 @@ export default function ProviderDashboard({ onLogout }) {
               })}
             </nav>
           </div>
-
           <div className="space-y-3">
-            {/* Verification Status */}
             <div
-              className={`rounded-lg p-3 ${
-                verificationStatus === "approved"
-                  ? "bg-[#1E7A34]/10 border border-[#1E7A34]/20"
-                  : verificationStatus === "rejected"
-                    ? "bg-red-50 border border-red-200"
-                    : verificationStatus === "submitted"
-                      ? "bg-[#FFF8F0] border border-[#F0821E]/20"
-                      : "bg-[#F7F6F2]"
-              }`}
+              className={`rounded-lg p-3 ${verificationStatus === "approved" ? "bg-[#1E7A34]/10 border border-[#1E7A34]/20" : verificationStatus === "rejected" ? "bg-red-50 border border-red-200" : verificationStatus === "submitted" ? "bg-[#FFF8F0] border border-[#F0821E]/20" : "bg-[#F7F6F2]"}`}
             >
               <div className="flex items-center gap-2">
                 {verificationStatus === "approved" && (
@@ -186,7 +212,6 @@ export default function ProviderDashboard({ onLogout }) {
                 </span>
               </div>
             </div>
-
             <div className="rounded-lg bg-[#F7F6F2] p-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F0821E] text-[14px] font-semibold text-white">
@@ -202,7 +227,6 @@ export default function ProviderDashboard({ onLogout }) {
                 </div>
               </div>
             </div>
-
             <button
               onClick={() => setActiveView("profile")}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-[#55605A] hover:bg-[#F7F6F2]"
@@ -220,7 +244,6 @@ export default function ProviderDashboard({ onLogout }) {
           </div>
         </aside>
 
-        {/* Main Content */}
         <main className="min-w-0 flex-1">
           {activeView === "dashboard" && (
             <DashboardView
@@ -258,13 +281,28 @@ export default function ProviderDashboard({ onLogout }) {
               onSelectConversation={setSelectedConversation}
               newMessage={newMessage}
               onNewMessageChange={setNewMessage}
-              onSendMessage={() => setNewMessage("")}
+              refetch={refetch}
             />
           )}
           {activeView === "notifications" && (
             <NotificationsView
               notifications={notifications}
               loading={loading}
+              markNotificationRead={async (n) => {
+                try {
+                  const token = localStorage.getItem("authToken");
+                  const API_URL =
+                    import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+                  await fetch(
+                    `${API_URL}/provider/notifications/${n.id}/read`,
+                    {
+                      method: "PATCH",
+                      headers: { Authorization: `Bearer ${token}` },
+                    },
+                  );
+                  refetch?.();
+                } catch (e) {}
+              }}
             />
           )}
           {activeView === "profile" && (
@@ -280,8 +318,6 @@ export default function ProviderDashboard({ onLogout }) {
           )}
         </main>
       </div>
-
-      {/* Mobile Bottom Nav */}
       <nav className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-around border-t border-[#E2E0D9] bg-white/95 px-2 py-2 backdrop-blur md:hidden">
         {NAV_CONFIG.slice(0, 4).map((item) => {
           const Icon = item.icon;
@@ -312,7 +348,6 @@ export default function ProviderDashboard({ onLogout }) {
   );
 }
 
-// Dashboard View
 function DashboardView({
   providerName,
   companyName,
@@ -335,7 +370,6 @@ function DashboardView({
 }) {
   return (
     <div className="px-5 py-6 md:px-8 md:py-8">
-      {/* Header */}
       <div className="mb-8 flex items-center justify-between gap-4">
         <div>
           <p className="text-[12px] text-[#9A9488] font-['IBM_Plex_Mono',monospace]">
@@ -345,7 +379,7 @@ function DashboardView({
               month: "long",
             })}
           </p>
-          <h1 className="text-[24px] font-semibold tracking-tight font-['Space_Grotesk',sans-serif]">
+          <h1 className="text-[24px] font-semibold">
             Welcome back, {providerName || "Pro"}
           </h1>
           {companyName && (
@@ -355,11 +389,7 @@ function DashboardView({
         <div className="flex items-center gap-3">
           <button
             onClick={onToggleAvailability}
-            className={`flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-semibold transition-all ${
-              isAvailable
-                ? "bg-[#1E7A34]/10 text-[#1E7A34] border border-[#1E7A34]/20"
-                : "bg-[#EFEDE6] text-[#55605A] border border-[#E2E0D9]"
-            }`}
+            className={`flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-semibold ${isAvailable ? "bg-[#1E7A34]/10 text-[#1E7A34] border border-[#1E7A34]/20" : "bg-[#EFEDE6] text-[#55605A] border border-[#E2E0D9]"}`}
           >
             {isAvailable ? (
               <ToggleRight className="h-4 w-4" />
@@ -380,7 +410,6 @@ function DashboardView({
         </div>
       </div>
 
-      {/* Pending Setup Banner */}
       {(!verificationStatus || verificationStatus === "pending") && (
         <div className="mb-6 rounded-xl border-2 border-[#F0821E] bg-[#FFF8F0] p-6">
           <div className="flex items-start gap-4">
@@ -388,12 +417,11 @@ function DashboardView({
               <AlertCircle className="h-6 w-6 text-[#F0821E]" />
             </div>
             <div className="flex-1">
-              <h3 className="text-[16px] font-semibold font-['Space_Grotesk',sans-serif]">
+              <h3 className="text-[16px] font-semibold">
                 Complete Your Profile Setup
               </h3>
               <p className="text-[13px] text-[#55605A] mt-1">
-                Complete your profile with service details, NIN verification,
-                and contact information to become visible to customers.
+                Complete your profile to become visible to customers.
               </p>
               <button
                 onClick={() => onNavigate("profile")}
@@ -405,7 +433,7 @@ function DashboardView({
           </div>
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[12px] text-[#55605A]">Setup Progress</span>
+              <span className="text-[12px]">Progress</span>
               <span className="text-[12px] font-semibold">
                 {profileCompletion || 0}%
               </span>
@@ -419,8 +447,6 @@ function DashboardView({
           </div>
         </div>
       )}
-
-      {/* Submitted Banner */}
       {verificationStatus === "submitted" && (
         <div className="mb-6 rounded-xl border border-[#F0821E]/20 bg-[#FFF8F0] p-6">
           <div className="flex items-start gap-4">
@@ -428,19 +454,16 @@ function DashboardView({
               <Clock className="h-6 w-6 text-[#F0821E]" />
             </div>
             <div>
-              <h3 className="text-[16px] font-semibold font-['Space_Grotesk',sans-serif]">
+              <h3 className="text-[16px] font-semibold">
                 Verification In Progress
               </h3>
               <p className="text-[13px] text-[#55605A] mt-1">
-                Your profile is under review. Our team will verify your
-                documents within 24-48 hours.
+                Your profile is under review.
               </p>
             </div>
           </div>
         </div>
       )}
-
-      {/* Rejected Banner */}
       {verificationStatus === "rejected" && (
         <div className="mb-6 rounded-xl border-2 border-red-300 bg-red-50 p-6">
           <div className="flex items-start gap-4">
@@ -448,12 +471,9 @@ function DashboardView({
               <X className="h-6 w-6 text-red-500" />
             </div>
             <div className="flex-1">
-              <h3 className="text-[16px] font-semibold text-red-700 font-['Space_Grotesk',sans-serif]">
+              <h3 className="text-[16px] font-semibold text-red-700">
                 Verification Rejected
               </h3>
-              <p className="text-[13px] text-red-600 mt-1">
-                Your verification was not approved.
-              </p>
               {rejectionReason && (
                 <div className="mt-3 bg-white border border-red-200 rounded-lg p-4">
                   <p className="text-[12px] font-semibold text-red-700 mb-1">
@@ -467,14 +487,12 @@ function DashboardView({
                 className="mt-4 rounded-lg bg-[#1E7A34] px-5 py-2.5 text-[13px] font-semibold text-white hover:bg-[#166B2C] flex items-center gap-2"
               >
                 <RefreshCw className="h-4 w-4" />
-                Resubmit Documents
+                Resubmit
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* Approved Banner */}
       {verificationStatus === "approved" && (
         <div className="mb-6 rounded-xl border border-[#1E7A34]/20 bg-[#1E7A34]/5 p-5">
           <div className="flex items-center gap-3">
@@ -484,14 +502,13 @@ function DashboardView({
                 Verified Provider
               </p>
               <p className="text-[12px] text-[#55605A]">
-                Your profile is visible to customers searching in your area.
+                Your profile is visible to customers.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Stats - Only show if approved */}
       {verificationStatus === "approved" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
@@ -531,11 +548,7 @@ function DashboardView({
                 ))}
               </div>
             ) : (activeJobs || []).length === 0 ? (
-              <EmptyState
-                icon={Briefcase}
-                title="No active jobs yet"
-                hint="New job requests will appear here"
-              />
+              <EmptyState icon={Briefcase} title="No active jobs yet" />
             ) : (
               <div className="space-y-4">
                 {activeJobs.slice(0, 3).map((job) => (
@@ -560,11 +573,7 @@ function DashboardView({
                 ))}
               </div>
             ) : (recentMessages || []).length === 0 ? (
-              <EmptyState
-                icon={MessageSquare}
-                title="No messages"
-                hint="Customer messages will appear here"
-              />
+              <EmptyState icon={MessageSquare} title="No messages" />
             ) : (
               <div className="space-y-2">
                 {recentMessages.map((msg) => (
@@ -583,7 +592,6 @@ function DashboardView({
   );
 }
 
-// Profile View
 function ProfileView({
   providerName,
   companyName,
@@ -593,8 +601,8 @@ function ProfileView({
   onUpdateProfile,
   onResubmit,
 }) {
-  const [profileData, setProfileData] = useState({
-    companyName: companyName || "",
+  const [pd, setPd] = useState({
+    companyName: "",
     serviceType: "",
     tagline: "",
     businessDescription: "",
@@ -604,40 +612,91 @@ function ProfileView({
     businessAddress: { street: "", city: "", state: "" },
     phone: "",
   });
-  const [ninDocument, setNinDocument] = useState(null);
-  const [selfiePhoto, setSelfiePhoto] = useState(null);
+  const [ninDoc, setNinDoc] = useState(null);
+  const [selfie, setSelfie] = useState(null);
   const [activeSection, setActiveSection] = useState("verification");
   const [saving, setSaving] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
-
+  const [sm, setSm] = useState("");
+  const [em, setEm] = useState("");
+  const [editingBasic, setEditingBasic] = useState(false);
+  const [editingAddress, setEditingAddress] = useState(false);
   const sections = [
     { id: "verification", label: "Verification", icon: Shield },
     { id: "basic", label: "Basic Info", icon: User },
     { id: "address", label: "Address", icon: MapPin },
   ];
 
+  // ✅ Load existing profile data
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const token = localStorage.getItem("authToken");
+        const API_URL =
+          import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+        const res = await fetch(`${API_URL}/provider/dashboard`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          const d = data.data;
+          setPd({
+            companyName: d.companyName || "",
+            serviceType: d.serviceType || "",
+            tagline: d.tagline || "",
+            businessDescription: d.businessDescription || "",
+            yearsOfExperience: d.yearsOfExperience || 0,
+            teamSize: d.teamSize || 1,
+            ninNumber: d.nin?.number || "",
+            businessAddress: {
+              street: d.businessAddress?.street || "",
+              city: d.city || d.businessAddress?.city || "",
+              state: d.state || d.businessAddress?.state || "",
+            },
+            phone: d.phone || "",
+          });
+          // Auto-enable editing if fields are empty
+          if (!d.companyName && !d.businessDescription) setEditingBasic(true);
+          if (!d.businessAddress?.city && !d.businessAddress?.state)
+            setEditingAddress(true);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadProfile();
+  }, []);
+
+  const handleBusinessDescChange = (e) => {
+    // ✅ Remove phone numbers and emails from business description
+    const value = e.target.value;
+    const cleaned = value
+      .replace(/\b\d{10,}\b/g, "")
+      .replace(/[\d]{3}[-.]?[\d]{3}[-.]?[\d]{4}/g, "")
+      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "");
+    setPd((p) => ({ ...p, businessDescription: cleaned }));
+  };
+
   const handleSave = async (section) => {
     setSaving(true);
-    setSuccessMessage("");
-    setErrorMessage("");
+    setSm("");
+    setEm("");
     try {
       if (section === "verification") {
         const fd = new FormData();
-        fd.append("serviceType", profileData.serviceType);
-        fd.append("tagline", profileData.tagline);
-        fd.append("ninNumber", profileData.ninNumber);
-        fd.append("city", profileData.businessAddress.city);
-        fd.append("state", profileData.businessAddress.state);
-        fd.append("phone", profileData.phone);
-        if (ninDocument) fd.append("ninDocument", ninDocument);
-        if (selfiePhoto) fd.append("selfiePhoto", selfiePhoto);
-        const token = localStorage.getItem("authToken");
+        fd.append("serviceType", pd.serviceType);
+        fd.append("tagline", pd.tagline);
+        fd.append("ninNumber", pd.ninNumber);
+        fd.append("city", pd.businessAddress.city);
+        fd.append("state", pd.businessAddress.state);
+        fd.append("phone", pd.phone);
+        if (ninDoc) fd.append("ninDocument", ninDoc);
+        if (selfie) fd.append("selfiePhoto", selfie);
+        const t = localStorage.getItem("authToken");
         const API_URL =
           import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
         const res = await fetch(`${API_URL}/provider/setup-profile`, {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${t}` },
           body: fd,
         });
         const data = await res.json();
@@ -646,24 +705,26 @@ function ProfileView({
         let d = {};
         if (section === "basic")
           d = {
-            companyName: profileData.companyName,
-            businessDescription: profileData.businessDescription,
-            yearsOfExperience: profileData.yearsOfExperience,
-            teamSize: profileData.teamSize,
+            companyName: pd.companyName,
+            businessDescription: pd.businessDescription,
+            yearsOfExperience: pd.yearsOfExperience,
+            teamSize: pd.teamSize,
           };
         if (section === "address")
           d = {
-            businessAddress: profileData.businessAddress,
-            city: profileData.businessAddress.city,
-            state: profileData.businessAddress.state,
+            businessAddress: pd.businessAddress,
+            city: pd.businessAddress.city,
+            state: pd.businessAddress.state,
           };
         await onUpdateProfile?.({ section, data: d });
       }
-      setSuccessMessage("Updated successfully!");
-      setTimeout(() => setSuccessMessage(""), 3000);
+      setSm("Updated!");
+      setEditingBasic(false);
+      setEditingAddress(false);
+      setTimeout(() => setSm(""), 3000);
     } catch (error) {
-      setErrorMessage(error.message);
-      setTimeout(() => setErrorMessage(""), 5000);
+      setEm(error.message);
+      setTimeout(() => setEm(""), 5000);
     } finally {
       setSaving(false);
     }
@@ -671,44 +732,25 @@ function ProfileView({
 
   return (
     <div className="px-5 py-6 md:px-8 md:py-8">
-      {successMessage && (
+      {sm && (
         <div className="mb-4 rounded-lg bg-[#1E7A34]/10 border border-[#1E7A34]/20 px-4 py-3 flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-[#1E7A34]" />
-          <p className="text-[13px] text-[#1E7A34] font-medium">
-            {successMessage}
-          </p>
+          <p className="text-[13px] text-[#1E7A34] font-medium">{sm}</p>
         </div>
       )}
-      {errorMessage && (
+      {em && (
         <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 text-red-500" />
-          <p className="text-[13px] text-red-600 font-medium">{errorMessage}</p>
+          <X className="h-4 w-4 text-red-600" />
+          <p className="text-[13px] text-red-600 font-medium">{em}</p>
         </div>
       )}
 
-      {/* Verification Status Card */}
       <div
-        className={`mb-8 rounded-xl border p-6 ${
-          verificationStatus === "approved"
-            ? "bg-[#1E7A34]/5 border-[#1E7A34]/20"
-            : verificationStatus === "rejected"
-              ? "bg-red-50 border-red-200"
-              : verificationStatus === "submitted"
-                ? "bg-[#FFF8F0] border-[#F0821E]/20"
-                : "bg-white border-[#E2E0D9]"
-        }`}
+        className={`mb-8 rounded-xl border p-6 ${verificationStatus === "approved" ? "bg-[#1E7A34]/5 border-[#1E7A34]/20" : verificationStatus === "rejected" ? "bg-red-50 border-red-200" : verificationStatus === "submitted" ? "bg-[#FFF8F0] border-[#F0821E]/20" : "bg-white border-[#E2E0D9]"}`}
       >
         <div className="flex items-center gap-4">
           <div
-            className={`h-14 w-14 rounded-full flex items-center justify-center ${
-              verificationStatus === "approved"
-                ? "bg-[#1E7A34]/10"
-                : verificationStatus === "rejected"
-                  ? "bg-red-100"
-                  : verificationStatus === "submitted"
-                    ? "bg-[#F0821E]/10"
-                    : "bg-[#EFEDE6]"
-            }`}
+            className={`h-14 w-14 rounded-full flex items-center justify-center ${verificationStatus === "approved" ? "bg-[#1E7A34]/10" : verificationStatus === "rejected" ? "bg-red-100" : verificationStatus === "submitted" ? "bg-[#F0821E]/10" : "bg-[#EFEDE6]"}`}
           >
             {verificationStatus === "approved" && (
               <CheckCircle2 className="h-7 w-7 text-[#1E7A34]" />
@@ -726,51 +768,34 @@ function ProfileView({
           <div>
             <h3 className="text-[16px] font-semibold">
               {verificationStatus === "approved"
-                ? "Verified ✓"
+                ? "Verified"
                 : verificationStatus === "rejected"
-                  ? "Verification Rejected"
+                  ? "Rejected"
                   : verificationStatus === "submitted"
                     ? "Under Review"
                     : "Complete Your Profile"}
             </h3>
             <p className="text-[13px] text-[#55605A] mt-1">
               {verificationStatus === "approved"
-                ? "Your profile is visible to customers."
+                ? "Visible to customers."
                 : verificationStatus === "rejected"
                   ? `Reason: ${rejectionReason || "Not specified"}`
                   : verificationStatus === "submitted"
-                    ? "Your documents are being reviewed."
-                    : "Fill in the required information to submit for verification."}
+                    ? "Being reviewed."
+                    : "Fill required info to submit."}
             </p>
             {rejectionReason && verificationStatus === "rejected" && (
               <button
                 onClick={onResubmit}
                 className="mt-3 rounded-lg bg-[#1E7A34] px-4 py-2 text-[12px] font-semibold text-white"
               >
-                Resubmit Documents
+                Resubmit
               </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* Profile Completion */}
-      <div className="mb-8 rounded-xl border border-[#E2E0D9] bg-white p-6">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-[14px] font-semibold">Profile Completion</h3>
-          <span className="text-[13px] font-semibold text-[#1E2420]">
-            {profileCompletion || 0}%
-          </span>
-        </div>
-        <div className="h-2 w-full bg-[#EFEDE6] rounded-full overflow-hidden">
-          <div
-            className="h-full bg-[#1E7A34] transition-all rounded-full"
-            style={{ width: `${profileCompletion || 0}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Section Navigation & Content */}
       <div className="flex gap-6">
         <div className="w-[200px] shrink-0 hidden md:block">
           <nav className="space-y-1 sticky top-24">
@@ -782,14 +807,10 @@ function ProfileView({
                   key={s.id}
                   onClick={() => {
                     setActiveSection(s.id);
-                    setSuccessMessage("");
-                    setErrorMessage("");
+                    setSm("");
+                    setEm("");
                   }}
-                  className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-[13px] font-medium transition-all ${
-                    isActive
-                      ? "bg-[#1E7A34] text-white shadow-sm"
-                      : "text-[#55605A] hover:bg-[#F7F6F2]"
-                  }`}
+                  className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-[13px] font-medium ${isActive ? "bg-[#1E7A34] text-white shadow-sm" : "text-[#55605A] hover:bg-[#F7F6F2]"}`}
                 >
                   <Icon className="h-4 w-4" />
                   {s.label}
@@ -805,11 +826,7 @@ function ProfileView({
               <button
                 key={s.id}
                 onClick={() => setActiveSection(s.id)}
-                className={`px-4 py-2 rounded-lg text-[12px] font-medium whitespace-nowrap ${
-                  isActive
-                    ? "bg-[#1E7A34] text-white"
-                    : "bg-white border text-[#55605A]"
-                }`}
+                className={`px-4 py-2 rounded-lg text-[12px] font-medium whitespace-nowrap ${isActive ? "bg-[#1E7A34] text-white" : "bg-white border text-[#55605A]"}`}
               >
                 {s.label}
               </button>
@@ -818,7 +835,6 @@ function ProfileView({
         </div>
 
         <div className="flex-1">
-          {/* Verification Section */}
           {activeSection === "verification" && (
             <div className="rounded-xl border border-[#E2E0D9] bg-white p-6">
               {verificationStatus === "approved" ? (
@@ -830,7 +846,7 @@ function ProfileView({
                     Profile Verified
                   </h2>
                   <p className="text-[14px] text-[#55605A]">
-                    Your profile has been verified and is visible to customers.
+                    Your profile is verified and visible.
                   </p>
                 </div>
               ) : verificationStatus === "submitted" ? (
@@ -842,17 +858,16 @@ function ProfileView({
                     Under Review
                   </h2>
                   <p className="text-[14px] text-[#55605A]">
-                    Your documents are being reviewed. You'll be notified once
-                    complete.
+                    Documents being reviewed.
                   </p>
                 </div>
               ) : (
                 <>
-                  <h2 className="text-[18px] font-semibold font-['Space_Grotesk',sans-serif] mb-6">
+                  <h2 className="text-[18px] font-semibold mb-6">
                     Verification Required
                   </h2>
                   <p className="text-[13px] text-[#55605A] mb-6">
-                    Fill all fields to submit for verification.
+                    Fill all fields to submit.
                   </p>
                   <div className="space-y-5">
                     <div>
@@ -860,12 +875,9 @@ function ProfileView({
                         Service Type *
                       </label>
                       <select
-                        value={profileData.serviceType}
+                        value={pd.serviceType}
                         onChange={(e) =>
-                          setProfileData((p) => ({
-                            ...p,
-                            serviceType: e.target.value,
-                          }))
+                          setPd((p) => ({ ...p, serviceType: e.target.value }))
                         }
                         className="w-full rounded-lg border px-4 py-3 text-[14px]"
                       >
@@ -887,16 +899,13 @@ function ProfileView({
                       </label>
                       <input
                         type="text"
-                        value={profileData.tagline}
+                        value={pd.tagline}
                         onChange={(e) =>
-                          setProfileData((p) => ({
-                            ...p,
-                            tagline: e.target.value,
-                          }))
+                          setPd((p) => ({ ...p, tagline: e.target.value }))
                         }
                         maxLength={200}
                         className="w-full rounded-lg border px-4 py-3 text-[14px]"
-                        placeholder="A short description of your service"
+                        placeholder="A short description"
                       />
                     </div>
                     <div>
@@ -905,12 +914,9 @@ function ProfileView({
                       </label>
                       <input
                         type="text"
-                        value={profileData.ninNumber}
+                        value={pd.ninNumber}
                         onChange={(e) =>
-                          setProfileData((p) => ({
-                            ...p,
-                            ninNumber: e.target.value,
-                          }))
+                          setPd((p) => ({ ...p, ninNumber: e.target.value }))
                         }
                         maxLength={11}
                         className="w-full rounded-lg border px-4 py-3 text-[14px]"
@@ -924,7 +930,7 @@ function ProfileView({
                       <input
                         type="file"
                         accept="image/*,.pdf"
-                        onChange={(e) => setNinDocument(e.target.files[0])}
+                        onChange={(e) => setNinDoc(e.target.files[0])}
                         className="w-full rounded-lg border px-4 py-3 text-[14px]"
                       />
                     </div>
@@ -935,7 +941,7 @@ function ProfileView({
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => setSelfiePhoto(e.target.files[0])}
+                        onChange={(e) => setSelfie(e.target.files[0])}
                         className="w-full rounded-lg border px-4 py-3 text-[14px]"
                       />
                     </div>
@@ -944,11 +950,10 @@ function ProfileView({
                         <label className="block text-[13px] font-semibold mb-2">
                           State *
                         </label>
-                        <input
-                          type="text"
-                          value={profileData.businessAddress.state}
+                        <select
+                          value={pd.businessAddress.state}
                           onChange={(e) =>
-                            setProfileData((p) => ({
+                            setPd((p) => ({
                               ...p,
                               businessAddress: {
                                 ...p.businessAddress,
@@ -957,17 +962,23 @@ function ProfileView({
                             }))
                           }
                           className="w-full rounded-lg border px-4 py-3 text-[14px]"
-                        />
+                        >
+                          <option value="">Select state</option>
+                          {Object.keys(CITIES_BY_STATE).map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-[13px] font-semibold mb-2">
                           City *
                         </label>
-                        <input
-                          type="text"
-                          value={profileData.businessAddress.city}
+                        <select
+                          value={pd.businessAddress.city}
                           onChange={(e) =>
-                            setProfileData((p) => ({
+                            setPd((p) => ({
                               ...p,
                               businessAddress: {
                                 ...p.businessAddress,
@@ -975,8 +986,18 @@ function ProfileView({
                               },
                             }))
                           }
-                          className="w-full rounded-lg border px-4 py-3 text-[14px]"
-                        />
+                          disabled={!pd.businessAddress.state}
+                          className="w-full rounded-lg border px-4 py-3 text-[14px] disabled:opacity-50"
+                        >
+                          <option value="">Select city</option>
+                          {(
+                            CITIES_BY_STATE[pd.businessAddress.state] || []
+                          ).map((c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                     <div>
@@ -985,12 +1006,9 @@ function ProfileView({
                       </label>
                       <input
                         type="tel"
-                        value={profileData.phone}
+                        value={pd.phone}
                         onChange={(e) =>
-                          setProfileData((p) => ({
-                            ...p,
-                            phone: e.target.value,
-                          }))
+                          setPd((p) => ({ ...p, phone: e.target.value }))
                         }
                         className="w-full rounded-lg border px-4 py-3 text-[14px]"
                       />
@@ -1010,166 +1028,288 @@ function ProfileView({
             </div>
           )}
 
-          {/* Basic Info Section */}
           {activeSection === "basic" && (
             <div className="rounded-xl border border-[#E2E0D9] bg-white p-6">
-              <h2 className="text-[18px] font-semibold mb-6">
-                Basic Information
-              </h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-[18px] font-semibold">Basic Information</h2>
+                <button
+                  onClick={() => {
+                    if (editingBasic) handleSave("basic");
+                    else setEditingBasic(true);
+                  }}
+                  className="text-[13px] text-[#1E7A34] font-medium flex items-center gap-1"
+                >
+                  {editingBasic ? (
+                    <>
+                      <Save className="h-4 w-4" />
+                      Save
+                    </>
+                  ) : (
+                    <>
+                      <Edit className="h-4 w-4" />
+                      Edit
+                    </>
+                  )}
+                </button>
+              </div>
               <div className="space-y-5">
                 <div>
                   <label className="block text-[13px] font-semibold mb-2">
                     Company Name
                   </label>
-                  <input
-                    type="text"
-                    value={profileData.companyName}
-                    onChange={(e) =>
-                      setProfileData((p) => ({
-                        ...p,
-                        companyName: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-lg border px-4 py-3 text-[14px]"
-                  />
+                  {editingBasic ? (
+                    <input
+                      type="text"
+                      value={pd.companyName}
+                      onChange={(e) =>
+                        setPd((p) => ({ ...p, companyName: e.target.value }))
+                      }
+                      className="w-full rounded-lg border px-4 py-3 text-[14px]"
+                    />
+                  ) : (
+                    <p className="text-[14px] text-[#1E2420] bg-[#F7F6F2] rounded-lg px-4 py-3">
+                      {pd.companyName || "Click Edit to add"}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[13px] font-semibold mb-2">
+                    Tagline
+                  </label>
+                  {editingBasic ? (
+                    <input
+                      type="text"
+                      value={pd.tagline}
+                      onChange={(e) =>
+                        setPd((p) => ({ ...p, tagline: e.target.value }))
+                      }
+                      maxLength={200}
+                      className="w-full rounded-lg border px-4 py-3 text-[14px]"
+                    />
+                  ) : (
+                    <p className="text-[14px] text-[#1E2420] bg-[#F7F6F2] rounded-lg px-4 py-3">
+                      {pd.tagline || "Click Edit to add"}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[13px] font-semibold mb-2">
                     Business Description
                   </label>
-                  <textarea
-                    rows={4}
-                    value={profileData.businessDescription}
-                    onChange={(e) =>
-                      setProfileData((p) => ({
-                        ...p,
-                        businessDescription: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-lg border px-4 py-3 text-[14px] resize-none"
-                  />
+                  {editingBasic ? (
+                    <textarea
+                      rows={4}
+                      value={pd.businessDescription}
+                      onChange={handleBusinessDescChange}
+                      className="w-full rounded-lg border px-4 py-3 text-[14px] resize-none"
+                    />
+                  ) : (
+                    <p className="text-[14px] text-[#1E2420] bg-[#F7F6F2] rounded-lg px-4 py-3">
+                      {pd.businessDescription || "Click Edit to add"}
+                    </p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[13px] font-semibold mb-2">
-                      Years of Experience
+                      Years of Exp.
                     </label>
-                    <input
-                      type="number"
-                      value={profileData.yearsOfExperience}
-                      onChange={(e) =>
-                        setProfileData((p) => ({
-                          ...p,
-                          yearsOfExperience: parseInt(e.target.value) || 0,
-                        }))
-                      }
-                      className="w-full rounded-lg border px-4 py-3 text-[14px]"
-                    />
+                    {editingBasic ? (
+                      <input
+                        type="number"
+                        value={pd.yearsOfExperience}
+                        onChange={(e) =>
+                          setPd((p) => ({
+                            ...p,
+                            yearsOfExperience: parseInt(e.target.value) || 0,
+                          }))
+                        }
+                        className="w-full rounded-lg border px-4 py-3 text-[14px]"
+                      />
+                    ) : (
+                      <p className="text-[14px] text-[#1E2420] bg-[#F7F6F2] rounded-lg px-4 py-3">
+                        {pd.yearsOfExperience || "0"}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-[13px] font-semibold mb-2">
                       Team Size
                     </label>
-                    <input
-                      type="number"
-                      value={profileData.teamSize}
-                      onChange={(e) =>
-                        setProfileData((p) => ({
-                          ...p,
-                          teamSize: parseInt(e.target.value) || 1,
-                        }))
-                      }
-                      className="w-full rounded-lg border px-4 py-3 text-[14px]"
-                    />
+                    {editingBasic ? (
+                      <input
+                        type="number"
+                        value={pd.teamSize}
+                        onChange={(e) =>
+                          setPd((p) => ({
+                            ...p,
+                            teamSize: parseInt(e.target.value) || 1,
+                          }))
+                        }
+                        className="w-full rounded-lg border px-4 py-3 text-[14px]"
+                      />
+                    ) : (
+                      <p className="text-[14px] text-[#1E2420] bg-[#F7F6F2] rounded-lg px-4 py-3">
+                        {pd.teamSize || "1"}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
-              <div className="mt-8 flex justify-end">
-                <button
-                  onClick={() => handleSave("basic")}
-                  disabled={saving}
-                  className="rounded-lg bg-[#1E7A34] px-6 py-3 text-[14px] font-semibold text-white hover:bg-[#166B2C] disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
+              {editingBasic && (
+                <div className="mt-6 flex gap-3">
+                  <button
+                    onClick={() => setEditingBasic(false)}
+                    className="flex-1 py-3 rounded-xl border text-[14px] font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleSave("basic")}
+                    disabled={saving}
+                    className="flex-1 bg-[#1E7A34] text-white py-3 rounded-xl text-[14px] font-semibold hover:bg-[#166B2C] disabled:opacity-50"
+                  >
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Address Section */}
           {activeSection === "address" && (
             <div className="rounded-xl border border-[#E2E0D9] bg-white p-6">
-              <h2 className="text-[18px] font-semibold mb-6">Address</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-[18px] font-semibold">Address</h2>
+                <button
+                  onClick={() => {
+                    if (editingAddress) handleSave("address");
+                    else setEditingAddress(true);
+                  }}
+                  className="text-[13px] text-[#1E7A34] font-medium flex items-center gap-1"
+                >
+                  {editingAddress ? (
+                    <>
+                      <Save className="h-4 w-4" />
+                      Save
+                    </>
+                  ) : (
+                    <>
+                      <Edit className="h-4 w-4" />
+                      Edit
+                    </>
+                  )}
+                </button>
+              </div>
               <div className="space-y-5">
                 <div>
                   <label className="block text-[13px] font-semibold mb-2">
                     Street
                   </label>
-                  <input
-                    type="text"
-                    value={profileData.businessAddress.street}
-                    onChange={(e) =>
-                      setProfileData((p) => ({
-                        ...p,
-                        businessAddress: {
-                          ...p.businessAddress,
-                          street: e.target.value,
-                        },
-                      }))
-                    }
-                    className="w-full rounded-lg border px-4 py-3 text-[14px]"
-                  />
+                  {editingAddress ? (
+                    <input
+                      type="text"
+                      value={pd.businessAddress.street}
+                      onChange={(e) =>
+                        setPd((p) => ({
+                          ...p,
+                          businessAddress: {
+                            ...p.businessAddress,
+                            street: e.target.value,
+                          },
+                        }))
+                      }
+                      className="w-full rounded-lg border px-4 py-3 text-[14px]"
+                    />
+                  ) : (
+                    <p className="text-[14px] text-[#1E2420] bg-[#F7F6F2] rounded-lg px-4 py-3">
+                      {pd.businessAddress.street || "Click Edit to add"}
+                    </p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[13px] font-semibold mb-2">
                       City
                     </label>
-                    <input
-                      type="text"
-                      value={profileData.businessAddress.city}
-                      onChange={(e) =>
-                        setProfileData((p) => ({
-                          ...p,
-                          businessAddress: {
-                            ...p.businessAddress,
-                            city: e.target.value,
-                          },
-                        }))
-                      }
-                      className="w-full rounded-lg border px-4 py-3 text-[14px]"
-                    />
+                    {editingAddress ? (
+                      <select
+                        value={pd.businessAddress.city}
+                        onChange={(e) =>
+                          setPd((p) => ({
+                            ...p,
+                            businessAddress: {
+                              ...p.businessAddress,
+                              city: e.target.value,
+                            },
+                          }))
+                        }
+                        className="w-full rounded-lg border px-4 py-3 text-[14px]"
+                      >
+                        <option value="">Select</option>
+                        {(CITIES_BY_STATE[pd.businessAddress.state] || []).map(
+                          (c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    ) : (
+                      <p className="text-[14px] text-[#1E2420] bg-[#F7F6F2] rounded-lg px-4 py-3">
+                        {pd.businessAddress.city || "Not set"}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-[13px] font-semibold mb-2">
                       State
                     </label>
-                    <input
-                      type="text"
-                      value={profileData.businessAddress.state}
-                      onChange={(e) =>
-                        setProfileData((p) => ({
-                          ...p,
-                          businessAddress: {
-                            ...p.businessAddress,
-                            state: e.target.value,
-                          },
-                        }))
-                      }
-                      className="w-full rounded-lg border px-4 py-3 text-[14px]"
-                    />
+                    {editingAddress ? (
+                      <select
+                        value={pd.businessAddress.state}
+                        onChange={(e) =>
+                          setPd((p) => ({
+                            ...p,
+                            businessAddress: {
+                              ...p.businessAddress,
+                              state: e.target.value,
+                            },
+                          }))
+                        }
+                        className="w-full rounded-lg border px-4 py-3 text-[14px]"
+                      >
+                        <option value="">Select</option>
+                        {Object.keys(CITIES_BY_STATE).map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="text-[14px] text-[#1E2420] bg-[#F7F6F2] rounded-lg px-4 py-3">
+                        {pd.businessAddress.state || "Not set"}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
-              <div className="mt-8 flex justify-end">
-                <button
-                  onClick={() => handleSave("address")}
-                  disabled={saving}
-                  className="rounded-lg bg-[#1E7A34] px-6 py-3 text-[14px] font-semibold text-white hover:bg-[#166B2C] disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
+              {editingAddress && (
+                <div className="mt-6 flex gap-3">
+                  <button
+                    onClick={() => setEditingAddress(false)}
+                    className="flex-1 py-3 rounded-xl border text-[14px] font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleSave("address")}
+                    disabled={saving}
+                    className="flex-1 bg-[#1E7A34] text-white py-3 rounded-xl text-[14px] font-semibold hover:bg-[#166B2C] disabled:opacity-50"
+                  >
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1178,26 +1318,29 @@ function ProfileView({
   );
 }
 
-// Messages View
+// ========== MESSAGES VIEW ==========
 function MessagesView({
   recentMessages,
   selectedConversation,
   onSelectConversation,
   newMessage,
   onNewMessageChange,
-  onSendMessage,
+  refetch,
 }) {
   const [chatMessages, setChatMessages] = useState([]);
   const [sending, setSending] = useState(false);
   const [warning, setWarning] = useState("");
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
-
   useEffect(() => {
-    if (selectedConversation?.id) fetchMessages(selectedConversation.id);
+    if (selectedConversation?.id) {
+      fetchMessages(selectedConversation.id);
+      refetch?.();
+    }
   }, [selectedConversation]);
 
   const fetchMessages = async (conversationId) => {
@@ -1214,7 +1357,7 @@ function MessagesView({
         setChatMessages(conv?.messages || []);
       }
     } catch (err) {
-      console.error("Fetch error:", err);
+      console.error(err);
     }
   };
 
@@ -1224,7 +1367,7 @@ function MessagesView({
       /\b\d{10,}\b/.test(newMessage) ||
       /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(newMessage)
     ) {
-      setWarning("Contact information is not allowed.");
+      setWarning("Contact info not allowed.");
       setTimeout(() => setWarning(""), 5000);
       return;
     }
@@ -1253,6 +1396,7 @@ function MessagesView({
           text: newMessage,
           sender: "me",
           senderModel: "ServiceProvider",
+          messageType: "text",
           createdAt: new Date().toISOString(),
         },
       ]);
@@ -1264,9 +1408,69 @@ function MessagesView({
     }
   };
 
+  const handleSendQuote = async (quoteData) => {
+    try {
+      const token = localStorage.getItem("authToken");
+      const API_URL =
+        import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+      const res = await fetch(
+        `${API_URL}/provider/send-quote/${selectedConversation.customerId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(quoteData),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      fetchMessages(selectedConversation.id);
+      setShowQuoteModal(false);
+    } catch (err) {
+      setWarning(err.message);
+    }
+  };
+
+  const gi = (n) =>
+    n
+      ? n
+          .split(" ")
+          .map((x) => x[0])
+          .join("")
+          .toUpperCase()
+      : "C";
+
   return (
     <div className="flex h-[calc(100vh-0px)]">
-      <div className="w-[360px] border-r border-[#E2E0D9] bg-white">
+      {showQuoteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white rounded-t-2xl z-10 flex items-center justify-between p-5 border-b">
+              <div>
+                <h3 className="text-[16px] font-semibold">Send Quote</h3>
+                <p className="text-[12px] text-[#9A9488]">
+                  To: {selectedConversation?.customerName}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowQuoteModal(false)}
+                className="p-1.5 rounded-lg hover:bg-[#F7F6F2]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <QuoteForm
+              customerName={selectedConversation?.customerName}
+              onSend={handleSendQuote}
+              onCancel={() => setShowQuoteModal(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="w-[360px] border-r border-[#E2E0D9] bg-white flex flex-col">
         <div className="p-4 border-b">
           <h2 className="text-[18px] font-semibold mb-4">Messages</h2>
           <div className="relative">
@@ -1278,34 +1482,34 @@ function MessagesView({
             />
           </div>
         </div>
-        <div className="overflow-y-auto">
+        <div className="flex-1 overflow-y-auto">
           {(recentMessages || []).length === 0 ? (
             <div className="p-8 text-center">
               <MessageCircle className="h-8 w-8 text-[#9A9488] mx-auto mb-3" />
-              <p className="text-[14px] text-[#55605A]">No messages yet</p>
+              <p className="text-[14px]">No messages yet</p>
             </div>
           ) : (
-            recentMessages.map((msg) => (
+            recentMessages.map((m) => (
               <button
-                key={msg.id}
-                onClick={() => onSelectConversation?.(msg)}
-                className={`w-full flex items-start gap-3 p-4 text-left hover:bg-[#F7F6F2] border-b ${selectedConversation?.id === msg.id ? "bg-[#F7F6F2]" : ""}`}
+                key={m.id}
+                onClick={() => onSelectConversation?.(m)}
+                className={`w-full flex items-start gap-3 p-4 text-left hover:bg-[#F7F6F2] border-b ${selectedConversation?.id === m.id ? "bg-[#F7F6F2]" : ""}`}
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1E7A34] text-[14px] font-semibold text-white">
-                  {msg.customerName?.[0] || "C"}
+                  {gi(m.customerName)}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">
                     <p className="truncate text-[14px] font-semibold">
-                      {msg.customerName}
+                      {m.customerName}
                     </p>
                     <span className="text-[11px] text-[#9A9488]">
-                      {msg.time}
+                      {formatNigerianDate(m.time)}
                     </span>
                   </div>
-                  <p className="truncate text-[12px] mt-1">{msg.preview}</p>
+                  <p className="truncate text-[12px] mt-1">{m.preview}</p>
                 </div>
-                {msg.unread && (
+                {m.unread && (
                   <span className="h-2.5 w-2.5 rounded-full bg-[#F0821E] mt-2" />
                 )}
               </button>
@@ -1313,13 +1517,14 @@ function MessagesView({
           )}
         </div>
       </div>
+
       <div className="flex-1 flex flex-col bg-[#F5F4F0]">
         {selectedConversation ? (
           <>
             <div className="flex items-center justify-between px-6 py-4 border-b bg-white">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1E7A34] text-[14px] font-semibold text-white">
-                  {selectedConversation.customerName?.[0] || "C"}
+                  {gi(selectedConversation.customerName)}
                 </div>
                 <div>
                   <p className="text-[14px] font-semibold">
@@ -1336,10 +1541,28 @@ function MessagesView({
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               {chatMessages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
-                  <p className="text-[14px] text-[#9A9488]">No messages yet.</p>
+                  <p className="text-[14px] text-[#9A9488]">
+                    No messages yet. Start the conversation or send a quote!
+                  </p>
                 </div>
               ) : (
                 chatMessages.map((msg, i) => {
+                  const isQuoteType = [
+                    "quote",
+                    "quote_accepted",
+                    "quote_rejected",
+                    "payment_requested",
+                    "payment_confirmed",
+                  ].includes(msg.messageType);
+                  if (isQuoteType)
+                    return (
+                      <div
+                        key={msg.id || i}
+                        className="flex justify-center my-3"
+                      >
+                        <ProviderQuoteBubble message={msg} />
+                      </div>
+                    );
                   const isMine =
                     msg.sender === "me" ||
                     msg.senderModel === "ServiceProvider";
@@ -1355,10 +1578,7 @@ function MessagesView({
                         <p
                           className={`text-[10px] mt-1 ${isMine ? "text-white/70" : "text-[#9A9488]"}`}
                         >
-                          {new Date(msg.createdAt).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {formatNigerianTime(msg.createdAt)}
                         </p>
                       </div>
                     </div>
@@ -1368,11 +1588,24 @@ function MessagesView({
               <div ref={messagesEndRef} />
             </div>
             {warning && (
-              <div className="mx-4 mb-2 rounded-lg bg-red-50 border px-4 py-3 text-[12px] text-red-600">
-                {warning}
+              <div className="mx-4 mb-2 rounded-lg bg-red-50 border px-4 py-3 text-[12px] text-red-600 flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                <span className="flex-1">{warning}</span>
+                <button onClick={() => setWarning("")}>
+                  <X className="h-3.5 w-3.5 text-red-400" />
+                </button>
               </div>
             )}
             <div className="p-4 border-t bg-white">
+              <div className="flex items-center gap-2 mb-2">
+                <button
+                  onClick={() => setShowQuoteModal(true)}
+                  className="px-3 py-1.5 rounded-lg bg-[#1E7A34]/10 text-[#1E7A34] text-[12px] font-semibold hover:bg-[#1E7A34]/20 flex items-center gap-1.5"
+                >
+                  <Calculator className="h-4 w-4" />
+                  Send Quote
+                </button>
+              </div>
               <div className="flex items-center gap-3">
                 <input
                   type="text"
@@ -1409,8 +1642,285 @@ function MessagesView({
   );
 }
 
-// Notifications View
-function NotificationsView({ notifications, loading }) {
+// ========== PROVIDER QUOTE BUBBLE ==========
+function ProviderQuoteBubble({ message }) {
+  const quote = message.quote;
+  const payment = message.payment;
+  if (message.messageType === "payment_confirmed")
+    return (
+      <div className="bg-[#1E7A34]/5 border-2 border-[#1E7A34]/30 rounded-2xl p-5 max-w-[320px]">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="h-10 w-10 rounded-full bg-[#1E7A34]/10 flex items-center justify-center">
+            <CheckCircle2 className="h-5 w-5 text-[#1E7A34]" />
+          </div>
+          <div>
+            <p className="text-[14px] font-semibold text-[#1E7A34]">
+              Booking Confirmed!
+            </p>
+          </div>
+        </div>
+        <div className="border-t pt-3">
+          <div className="flex justify-between text-[13px]">
+            <span>Amount</span>
+            <span className="font-bold">
+              ₦{(payment?.amount || quote?.totalAmount || 0).toLocaleString()}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  if (message.messageType === "payment_requested")
+    return (
+      <div className="bg-white border-2 border-[#F0821E]/20 rounded-2xl p-5 max-w-[320px]">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="h-10 w-10 rounded-full bg-[#F0821E]/10 flex items-center justify-center">
+            <CreditCard className="h-5 w-5 text-[#F0821E]" />
+          </div>
+          <div>
+            <p className="text-[14px] font-semibold">Awaiting Payment</p>
+          </div>
+        </div>
+        <div className="bg-[#F7F6F2] rounded-xl p-3">
+          <div className="flex justify-between">
+            <span>Amount</span>
+            <span className="text-[18px] font-bold">
+              ₦{(payment?.amount || quote?.totalAmount || 0).toLocaleString()}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  if (message.messageType === "quote_accepted")
+    return (
+      <div className="bg-[#1E7A34]/5 border border-[#1E7A34]/20 rounded-2xl p-4 max-w-[300px]">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="h-5 w-5 text-[#1E7A34]" />
+          <span className="text-[13px] font-semibold text-[#1E7A34]">
+            Quote Accepted
+          </span>
+        </div>
+      </div>
+    );
+  if (message.messageType === "quote_rejected")
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-2xl p-4 max-w-[300px]">
+        <div className="flex items-center gap-2">
+          <XCircle className="h-5 w-5 text-red-500" />
+          <span className="text-[13px] font-semibold text-red-500">
+            Quote Declined
+          </span>
+        </div>
+        {quote?.rejectionReason && (
+          <p className="text-[12px] text-red-400 mt-1">
+            {quote.rejectionReason}
+          </p>
+        )}
+      </div>
+    );
+  return (
+    <div className="bg-white border-2 border-[#1E7A34]/20 rounded-2xl p-5 max-w-[340px] shadow-sm">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="h-10 w-10 rounded-full bg-[#1E7A34]/10 flex items-center justify-center">
+          <Calculator className="h-5 w-5 text-[#1E7A34]" />
+        </div>
+        <div>
+          <p className="text-[14px] font-semibold">Quote Sent</p>
+          {quote?.status === "accepted" && (
+            <span className="text-[11px] text-[#1E7A34]">Accepted</span>
+          )}
+          {quote?.status === "rejected" && (
+            <span className="text-[11px] text-red-500">Declined</span>
+          )}
+          {quote?.status === "pending" && (
+            <span className="text-[11px] text-[#F0821E]">Awaiting</span>
+          )}
+        </div>
+      </div>
+      {quote?.serviceDescription && (
+        <div className="bg-[#F7F6F2] rounded-xl p-3 mb-3">
+          <div className="flex items-start gap-2">
+            <Wrench className="h-4 w-4 text-[#1E7A34] mt-0.5" />
+            <div>
+              <p className="text-[12px] font-semibold mb-1">Service</p>
+              <p className="text-[13px]">{quote.serviceDescription}</p>
+            </div>
+          </div>
+        </div>
+      )}
+      {quote?.materials && (
+        <div className="bg-[#F7F6F2] rounded-xl p-3 mb-3">
+          <div className="flex items-start gap-2">
+            <Package className="h-4 w-4 text-[#1E7A34] mt-0.5" />
+            <div>
+              <p className="text-[12px] font-semibold mb-1">Materials</p>
+              <p className="text-[13px]">{quote.materials}</p>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="space-y-2 mb-3">
+        {(quote?.laborCost || 0) > 0 && (
+          <div className="flex justify-between text-[13px]">
+            <span>Labor</span>
+            <span className="font-medium">
+              ₦{(quote.laborCost || 0).toLocaleString()}
+            </span>
+          </div>
+        )}
+        {(quote?.materialCost || 0) > 0 && (
+          <div className="flex justify-between text-[13px]">
+            <span>Materials</span>
+            <span className="font-medium">
+              ₦{(quote.materialCost || 0).toLocaleString()}
+            </span>
+          </div>
+        )}
+        {(quote?.additionalFees || 0) > 0 && (
+          <div className="flex justify-between text-[13px]">
+            <span>Fees</span>
+            <span className="font-medium">
+              ₦{(quote.additionalFees || 0).toLocaleString()}
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="bg-[#1E7A34]/5 rounded-xl p-3 flex items-center justify-between">
+        <span className="text-[14px] font-semibold">Total</span>
+        <span className="text-[20px] font-bold text-[#1E7A34]">
+          ₦{(quote?.totalAmount || 0).toLocaleString()}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ========== QUOTE FORM ==========
+function QuoteForm({ customerName, onSend, onCancel }) {
+  const [fd, setFd] = useState({
+    serviceDescription: "",
+    materials: "",
+    laborCost: "",
+    materialCost: "",
+    additionalFees: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const total =
+    (Number(fd.laborCost) || 0) +
+    (Number(fd.materialCost) || 0) +
+    (Number(fd.additionalFees) || 0);
+  return (
+    <div className="p-5 space-y-5">
+      <div className="bg-[#F7F6F2] rounded-xl p-3 text-center">
+        <p className="text-[12px] text-[#9A9488]">Quote for</p>
+        <p className="text-[14px] font-semibold">{customerName}</p>
+      </div>
+      <div>
+        <label className="flex items-center gap-2 text-[13px] font-semibold mb-2">
+          <Wrench className="h-4 w-4 text-[#1E7A34]" />
+          Service *
+        </label>
+        <textarea
+          name="serviceDescription"
+          value={fd.serviceDescription}
+          onChange={(e) =>
+            setFd((p) => ({ ...p, serviceDescription: e.target.value }))
+          }
+          rows={3}
+          className="w-full rounded-xl border px-4 py-3 text-[14px] resize-none bg-[#FAFAF8]"
+        />
+      </div>
+      <div>
+        <label className="flex items-center gap-2 text-[13px] font-semibold mb-2">
+          <Package className="h-4 w-4 text-[#1E7A34]" />
+          Materials
+        </label>
+        <textarea
+          name="materials"
+          value={fd.materials}
+          onChange={(e) => setFd((p) => ({ ...p, materials: e.target.value }))}
+          rows={2}
+          className="w-full rounded-xl border px-4 py-3 text-[14px] resize-none bg-[#FAFAF8]"
+        />
+      </div>
+      <div className="bg-[#F7F6F2] rounded-xl p-4 space-y-3">
+        <h4 className="text-[13px] font-semibold">Cost</h4>
+        <div>
+          <label className="text-[12px] mb-1 block">Labor (₦)</label>
+          <input
+            type="number"
+            name="laborCost"
+            value={fd.laborCost}
+            onChange={(e) =>
+              setFd((p) => ({ ...p, laborCost: e.target.value }))
+            }
+            min="0"
+            className="w-full rounded-lg border px-4 py-2.5 text-[14px] bg-white"
+          />
+        </div>
+        <div>
+          <label className="text-[12px] mb-1 block">Materials (₦)</label>
+          <input
+            type="number"
+            name="materialCost"
+            value={fd.materialCost}
+            onChange={(e) =>
+              setFd((p) => ({ ...p, materialCost: e.target.value }))
+            }
+            min="0"
+            className="w-full rounded-lg border px-4 py-2.5 text-[14px] bg-white"
+          />
+        </div>
+        <div>
+          <label className="text-[12px] mb-1 block">Fees (₦)</label>
+          <input
+            type="number"
+            name="additionalFees"
+            value={fd.additionalFees}
+            onChange={(e) =>
+              setFd((p) => ({ ...p, additionalFees: e.target.value }))
+            }
+            min="0"
+            className="w-full rounded-lg border px-4 py-2.5 text-[14px] bg-white"
+          />
+        </div>
+        <div className="border-t pt-3 flex items-center justify-between">
+          <span className="text-[14px] font-semibold">Total</span>
+          <span className="text-[22px] font-bold text-[#1E7A34]">
+            ₦{total.toLocaleString()}
+          </span>
+        </div>
+      </div>
+      <div className="flex gap-3 pt-2">
+        <button
+          onClick={onCancel}
+          className="flex-1 py-3 rounded-xl border text-[14px] font-semibold"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={async () => {
+            if (!fd.serviceDescription.trim() || total <= 0) return;
+            setLoading(true);
+            try {
+              await onSend?.(fd);
+              onCancel?.();
+            } catch (e) {
+            } finally {
+              setLoading(false);
+            }
+          }}
+          disabled={!fd.serviceDescription.trim() || total <= 0 || loading}
+          className="flex-1 bg-[#1E7A34] text-white py-3 rounded-xl text-[14px] font-semibold hover:bg-[#166B2C] disabled:opacity-50"
+        >
+          {loading ? "Sending..." : "Send Quote"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ========== NOTIFICATIONS VIEW ==========
+function NotificationsView({ notifications, loading, markNotificationRead }) {
   return (
     <div className="px-5 py-6 md:px-8 md:py-8">
       <h2 className="text-[24px] font-semibold mb-6">Notifications</h2>
@@ -1425,15 +1935,18 @@ function NotificationsView({ notifications, loading }) {
           notifications.map((n) => (
             <div
               key={n.id}
-              className={`rounded-xl border p-4 ${n.read ? "bg-white" : "bg-[#FFF8F0] border-[#F0821E]/20"}`}
+              onClick={() => markNotificationRead?.(n)}
+              className={`rounded-xl border p-4 cursor-pointer transition-all hover:shadow-sm ${n.read ? "bg-white opacity-70" : "bg-[#FFF8F0] border-[#F0821E]/20"}`}
             >
               <div className="flex items-start gap-3">
                 <span
-                  className={`mt-1 h-2 w-2 rounded-full ${n.kind === "success" ? "bg-[#1E7A34]" : "bg-[#F0821E]"}`}
+                  className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${n.read ? "bg-[#9A9488]" : n.kind === "success" ? "bg-[#1E7A34]" : "bg-[#F0821E]"}`}
                 />
-                <div>
+                <div className="flex-1">
                   <p className="text-[14px]">{n.text}</p>
-                  <p className="text-[12px] text-[#9A9488] mt-1">{n.time}</p>
+                  <p className="text-[12px] text-[#9A9488] mt-1">
+                    {formatNigerianDate(n.time)}
+                  </p>
                 </div>
                 {!n.read && (
                   <span className="text-[11px] font-semibold text-[#F0821E]">
@@ -1449,7 +1962,7 @@ function NotificationsView({ notifications, loading }) {
   );
 }
 
-// Reusable Components
+// ========== REUSABLE ==========
 function StatCard({ icon: Icon, label, value, color }) {
   const c = {
     green: "border-[#1E7A34]/20 bg-[#1E7A34]/5",
@@ -1470,14 +1983,11 @@ function StatCard({ icon: Icon, label, value, color }) {
       >
         <Icon className="h-5 w-5" />
       </div>
-      <p className="text-[28px] font-bold font-['Space_Grotesk',sans-serif]">
-        {value}
-      </p>
+      <p className="text-[28px] font-bold">{value}</p>
       <p className="text-[13px] text-[#55605A] mt-1">{label}</p>
     </div>
   );
 }
-
 function Section({ title, action, children }) {
   return (
     <div className="rounded-xl border border-[#E2E0D9] bg-white p-6">
@@ -1496,7 +2006,6 @@ function Section({ title, action, children }) {
     </div>
   );
 }
-
 function MessagePreview({ message, onClick }) {
   return (
     <button
@@ -1511,7 +2020,9 @@ function MessagePreview({ message, onClick }) {
           <p className="truncate text-[13px] font-semibold">
             {message.customerName}
           </p>
-          <span className="text-[11px] text-[#9A9488]">{message.time}</span>
+          <span className="text-[11px] text-[#9A9488]">
+            {formatNigerianDate(message.time)}
+          </span>
         </div>
         <p className="truncate text-[12px] mt-0.5">{message.preview}</p>
       </div>
@@ -1521,7 +2032,6 @@ function MessagePreview({ message, onClick }) {
     </button>
   );
 }
-
 function JobCard({ job, onRespond }) {
   return (
     <div className="rounded-xl border-l-4 bg-white border p-5">
@@ -1559,7 +2069,6 @@ function JobCard({ job, onRespond }) {
     </div>
   );
 }
-
 function SkeletonBlock({ className = "" }) {
   return (
     <div className={`animate-pulse rounded-lg bg-[#EAE8E1] ${className}`} />
