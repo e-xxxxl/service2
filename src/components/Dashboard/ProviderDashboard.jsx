@@ -37,10 +37,10 @@ import {
 import { useNavigate } from "react-router-dom";
 import logoIcon from "../../assets/dashlogo.png";
 import { useProviderDashboard } from "../../hooks/useProviderDashboard";
-import {
-  SERVICE_CATEGORIES,
-  CITIES_BY_STATE,
-} from "../../constants/serviceCategories";
+import { SERVICE_CATEGORIES } from "../../constants/serviceCategories";
+import { useLocations } from "../../hooks/useLocations";
+import { useSocket } from "../../hooks/useSocket";
+import ContactReveal from "../payment/ContactReveal";
 
 const NAV_CONFIG = [
   { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
@@ -50,6 +50,7 @@ const NAV_CONFIG = [
     icon: MessageCircle,
     badgeKey: "messages",
   },
+  { id: "wallet", label: "Wallet", icon: CreditCard },
   {
     id: "notifications",
     label: "Alerts",
@@ -118,6 +119,18 @@ export default function ProviderDashboard({ onLogout }) {
   const [isAvailable, setIsAvailable] = useState(true);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [newMessage, setNewMessage] = useState("");
+  const { socket, connected: socketConnected } = useSocket();
+
+  useEffect(() => {
+    if (!socket) return;
+    const onUpdate = () => refetch();
+    socket.on("message:notification", onUpdate);
+    socket.on("notification:new", onUpdate);
+    return () => {
+      socket.off("message:notification", onUpdate);
+      socket.off("notification:new", onUpdate);
+    };
+  }, [socket, refetch]);
 
   useEffect(() => {
     sessionStorage.setItem("pvActiveView", activeView);
@@ -282,8 +295,11 @@ export default function ProviderDashboard({ onLogout }) {
               newMessage={newMessage}
               onNewMessageChange={setNewMessage}
               refetch={refetch}
+              socket={socket}
+              socketConnected={socketConnected}
             />
           )}
+          {activeView === "wallet" && <WalletView />}
           {activeView === "notifications" && (
             <NotificationsView
               notifications={notifications}
@@ -319,7 +335,7 @@ export default function ProviderDashboard({ onLogout }) {
         </main>
       </div>
       <nav className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-around border-t border-[#E2E0D9] bg-white/95 px-2 py-2 backdrop-blur md:hidden">
-        {NAV_CONFIG.slice(0, 4).map((item) => {
+        {NAV_CONFIG.map((item) => {
           const Icon = item.icon;
           const isActive = activeView === item.id;
           const badge = item.badgeKey ? badgeCounts[item.badgeKey] : 0;
@@ -601,6 +617,7 @@ function ProfileView({
   onUpdateProfile,
   onResubmit,
 }) {
+  const { states: NIGERIAN_STATES, getLgas } = useLocations();
   const [pd, setPd] = useState({
     companyName: "",
     serviceType: "",
@@ -964,7 +981,7 @@ function ProfileView({
                           className="w-full rounded-lg border px-4 py-3 text-[14px]"
                         >
                           <option value="">Select state</option>
-                          {Object.keys(CITIES_BY_STATE).map((s) => (
+                          {NIGERIAN_STATES.map((s) => (
                             <option key={s} value={s}>
                               {s}
                             </option>
@@ -991,7 +1008,7 @@ function ProfileView({
                         >
                           <option value="">Select city</option>
                           {(
-                            CITIES_BY_STATE[pd.businessAddress.state] || []
+                            getLgas(pd.businessAddress.state)
                           ).map((c) => (
                             <option key={c} value={c}>
                               {c}
@@ -1246,7 +1263,7 @@ function ProfileView({
                         className="w-full rounded-lg border px-4 py-3 text-[14px]"
                       >
                         <option value="">Select</option>
-                        {(CITIES_BY_STATE[pd.businessAddress.state] || []).map(
+                        {(getLgas(pd.businessAddress.state)).map(
                           (c) => (
                             <option key={c} value={c}>
                               {c}
@@ -1279,7 +1296,7 @@ function ProfileView({
                         className="w-full rounded-lg border px-4 py-3 text-[14px]"
                       >
                         <option value="">Select</option>
-                        {Object.keys(CITIES_BY_STATE).map((s) => (
+                        {NIGERIAN_STATES.map((s) => (
                           <option key={s} value={s}>
                             {s}
                           </option>
@@ -1326,12 +1343,18 @@ function MessagesView({
   newMessage,
   onNewMessageChange,
   refetch,
+  socket,
+  socketConnected,
 }) {
   const [chatMessages, setChatMessages] = useState([]);
   const [sending, setSending] = useState(false);
   const [warning, setWarning] = useState("");
   const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [contactUnlocked, setContactUnlocked] = useState(false);
+  const [customerTyping, setCustomerTyping] = useState(false);
+  const [seenByCustomer, setSeenByCustomer] = useState(false);
   const messagesEndRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1342,6 +1365,50 @@ function MessagesView({
       refetch?.();
     }
   }, [selectedConversation]);
+
+  // Join the conversation's room for as long as it's open, and append
+  // incoming messages live instead of waiting for a refetch.
+  useEffect(() => {
+    if (!socket || !selectedConversation?.id) return;
+    const conversationId = selectedConversation.id;
+    socket.emit("join:conversation", conversationId);
+
+    const onMessage = ({ conversationId: cid, message }) => {
+      if (cid !== conversationId) return;
+      // Messages sent from this side are already shown optimistically -
+      // only live-append messages coming from the customer.
+      if (message.senderModel === "ServiceProvider") return;
+      setChatMessages((prev) => {
+        if (prev.some((m) => (m._id || m.id) === (message._id || message.id))) return prev;
+        return [...prev, { ...message, messageType: message.messageType || "text" }];
+      });
+      setCustomerTyping(false);
+    };
+    const onTypingStart = ({ conversationId: cid }) => {
+      if (cid === conversationId) setCustomerTyping(true);
+    };
+    const onTypingStop = ({ conversationId: cid }) => {
+      if (cid === conversationId) setCustomerTyping(false);
+    };
+    const onRead = ({ conversationId: cid }) => {
+      if (cid === conversationId) setSeenByCustomer(true);
+    };
+
+    socket.on("message:received", onMessage);
+    socket.on("typing:start", onTypingStart);
+    socket.on("typing:stop", onTypingStop);
+    socket.on("messages:read", onRead);
+
+    return () => {
+      socket.emit("leave:conversation", conversationId);
+      socket.off("message:received", onMessage);
+      socket.off("typing:start", onTypingStart);
+      socket.off("typing:stop", onTypingStop);
+      socket.off("messages:read", onRead);
+      setCustomerTyping(false);
+      setSeenByCustomer(false);
+    };
+  }, [socket, selectedConversation?.id]);
 
   const fetchMessages = async (conversationId) => {
     try {
@@ -1355,6 +1422,8 @@ function MessagesView({
       if (data.success) {
         const conv = data.data.find((c) => c.id === conversationId);
         setChatMessages(conv?.messages || []);
+        setContactUnlocked(!!conv?.contactUnlocked);
+        socket?.emit("messages:read", { conversationId });
       }
     } catch (err) {
       console.error(err);
@@ -1400,6 +1469,7 @@ function MessagesView({
           createdAt: new Date().toISOString(),
         },
       ]);
+      setSeenByCustomer(false);
       onNewMessageChange?.("");
     } catch (err) {
       setWarning(err.message);
@@ -1533,11 +1603,22 @@ function MessagesView({
                   <p className="text-[12px] text-[#55605A]">Customer</p>
                 </div>
               </div>
+              <ContactReveal
+                role="provider"
+                conversationId={selectedConversation.id}
+                contactUnlocked={contactUnlocked}
+              />
             </div>
             <div className="px-5 py-2 bg-[#FFF8F0] border-b flex items-center gap-2 text-[11px] text-[#B85E10]">
               <Shield className="h-3.5 w-3.5" />
               Keep communication on the platform.
             </div>
+            {socket && !socketConnected && (
+              <div className="px-5 py-1.5 bg-[#FFF3F3] border-b flex items-center gap-2 text-[11px] text-red-600">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+                Reconnecting... messages will send once you're back online.
+              </div>
+            )}
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               {chatMessages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
@@ -1576,14 +1657,27 @@ function MessagesView({
                       >
                         <p className="text-[14px]">{msg.text}</p>
                         <p
-                          className={`text-[10px] mt-1 ${isMine ? "text-white/70" : "text-[#9A9488]"}`}
+                          className={`text-[10px] mt-1 flex items-center gap-1 ${isMine ? "text-white/70" : "text-[#9A9488]"}`}
                         >
                           {formatNigerianTime(msg.createdAt)}
+                          {isMine && i === chatMessages.length - 1 && seenByCustomer && (
+                            <span>· Seen</span>
+                          )}
                         </p>
                       </div>
                     </div>
                   );
                 })
+              )}
+              {customerTyping && (
+                <div className="flex items-center gap-1.5 text-[11px] text-[#9A9488] px-1">
+                  <span className="flex gap-0.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#9A9488] animate-bounce [animation-delay:-0.3s]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#9A9488] animate-bounce [animation-delay:-0.15s]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#9A9488] animate-bounce" />
+                  </span>
+                  typing...
+                </div>
               )}
               <div ref={messagesEndRef} />
             </div>
@@ -1610,7 +1704,16 @@ function MessagesView({
                 <input
                   type="text"
                   value={newMessage}
-                  onChange={(e) => onNewMessageChange?.(e.target.value)}
+                  onChange={(e) => {
+                    onNewMessageChange?.(e.target.value);
+                    if (socket && selectedConversation?.id) {
+                      socket.emit("typing:start", { conversationId: selectedConversation.id });
+                      clearTimeout(typingTimeoutRef.current);
+                      typingTimeoutRef.current = setTimeout(() => {
+                        socket.emit("typing:stop", { conversationId: selectedConversation.id });
+                      }, 2000);
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && newMessage.trim()) handleSend();
                   }}
@@ -1669,27 +1772,6 @@ function ProviderQuoteBubble({ message }) {
         </div>
       </div>
     );
-  if (message.messageType === "payment_requested")
-    return (
-      <div className="bg-white border-2 border-[#F0821E]/20 rounded-2xl p-5 max-w-[320px]">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="h-10 w-10 rounded-full bg-[#F0821E]/10 flex items-center justify-center">
-            <CreditCard className="h-5 w-5 text-[#F0821E]" />
-          </div>
-          <div>
-            <p className="text-[14px] font-semibold">Awaiting Payment</p>
-          </div>
-        </div>
-        <div className="bg-[#F7F6F2] rounded-xl p-3">
-          <div className="flex justify-between">
-            <span>Amount</span>
-            <span className="text-[18px] font-bold">
-              ₦{(payment?.amount || quote?.totalAmount || 0).toLocaleString()}
-            </span>
-          </div>
-        </div>
-      </div>
-    );
   if (message.messageType === "quote_accepted")
     return (
       <div className="bg-[#1E7A34]/5 border border-[#1E7A34]/20 rounded-2xl p-4 max-w-[300px]">
@@ -1725,14 +1807,17 @@ function ProviderQuoteBubble({ message }) {
         </div>
         <div>
           <p className="text-[14px] font-semibold">Quote Sent</p>
+          {quote?.status === "paid" && (
+            <span className="text-[11px] text-[#1E7A34] font-semibold">Paid - job active</span>
+          )}
           {quote?.status === "accepted" && (
-            <span className="text-[11px] text-[#1E7A34]">Accepted</span>
+            <span className="text-[11px] text-[#1E7A34]">Accepted - awaiting payment</span>
           )}
           {quote?.status === "rejected" && (
             <span className="text-[11px] text-red-500">Declined</span>
           )}
           {quote?.status === "pending" && (
-            <span className="text-[11px] text-[#F0821E]">Awaiting</span>
+            <span className="text-[11px] text-[#F0821E]">Awaiting response</span>
           )}
         </div>
       </div>
@@ -1962,6 +2047,143 @@ function NotificationsView({ notifications, loading, markNotificationRead }) {
   );
 }
 
+// ========== WALLET ==========
+function WalletView() {
+  const [wallet, setWallet] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const API_URL =
+    import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("authToken");
+      const headers = { Authorization: `Bearer ${token}` };
+      const [walletRes, txRes] = await Promise.all([
+        fetch(`${API_URL}/provider/wallet`, { headers }),
+        fetch(`${API_URL}/provider/transactions`, { headers }),
+      ]);
+      const walletData = await walletRes.json();
+      const txData = await txRes.json();
+      if (!walletRes.ok) throw new Error(walletData.message || "Failed to load wallet");
+      if (!txRes.ok) throw new Error(txData.message || "Failed to load transactions");
+      setWallet(walletData.data);
+      setTransactions(txData.data || []);
+    } catch (err) {
+      setError(
+        err.message?.toLowerCase().includes("fetch")
+          ? "We couldn't connect to the server. Please check your internet connection and try again."
+          : err.message
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  return (
+    <div className="px-5 py-6 md:px-8 md:py-8">
+      <h2 className="text-[24px] font-semibold mb-6">Wallet</h2>
+
+      {error && <ErrorBanner message={error} onRetry={load} />}
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        {loading ? (
+          [0, 1, 2].map((i) => <SkeletonBlock key={i} className="h-[92px]" />)
+        ) : (
+          <>
+            <div className="rounded-xl border border-[#1E7A34]/20 bg-[#1E7A34]/5 p-5">
+              <p className="text-[12px] font-medium text-[#55605A] mb-1">Available balance</p>
+              <p className="text-[26px] font-bold text-[#1E7A34]">
+                ₦{(wallet?.balance || 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-xl border border-[#E2E0D9] bg-white p-5">
+              <p className="text-[12px] font-medium text-[#55605A] mb-1">Total earnings</p>
+              <p className="text-[26px] font-bold text-[#1E2420]">
+                ₦{(wallet?.totalEarnings || 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-xl border border-[#E2E0D9] bg-white p-5">
+              <p className="text-[12px] font-medium text-[#55605A] mb-1">Pending</p>
+              <p className="text-[26px] font-bold text-[#1E2420]">
+                ₦{(wallet?.pendingEarnings || 0).toLocaleString()}
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+
+      <h3 className="text-[15px] font-semibold mb-3">Transaction history</h3>
+
+      {loading ? (
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <SkeletonBlock key={i} className="h-[56px]" />
+          ))}
+        </div>
+      ) : transactions.length === 0 ? (
+        <EmptyState icon={CreditCard} title="No transactions yet" hint="Paid quotes will show up here." />
+      ) : (
+        <>
+          {/* Desktop: table */}
+          <div className="hidden md:block rounded-xl border border-[#E2E0D9] bg-white overflow-hidden">
+            <table className="w-full text-left">
+              <thead className="bg-[#F7F6F2] text-[11px] uppercase text-[#9A9488]">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Customer</th>
+                  <th className="px-4 py-3 font-semibold">Reference</th>
+                  <th className="px-4 py-3 font-semibold">Date</th>
+                  <th className="px-4 py-3 font-semibold text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E2E0D9]">
+                {transactions.map((t) => (
+                  <tr key={t.id}>
+                    <td className="px-4 py-3 text-[13px]">{t.customerName}</td>
+                    <td className="px-4 py-3 text-[12px] text-[#9A9488]">{t.reference}</td>
+                    <td className="px-4 py-3 text-[12px] text-[#9A9488]">
+                      {formatNigerianDate(t.paidAt)}
+                    </td>
+                    <td className="px-4 py-3 text-[13px] font-semibold text-right text-[#1E7A34]">
+                      +₦{t.amount.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile: stacked cards */}
+          <div className="md:hidden space-y-2">
+            {transactions.map((t) => (
+              <div key={t.id} className="rounded-xl border border-[#E2E0D9] bg-white p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[13px] font-medium">{t.customerName}</span>
+                  <span className="text-[13px] font-semibold text-[#1E7A34]">
+                    +₦{t.amount.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-[#9A9488]">
+                  <span>{t.reference}</span>
+                  <span>{formatNigerianDate(t.paidAt)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ========== REUSABLE ==========
 function StatCard({ icon: Icon, label, value, color }) {
   const c = {
@@ -2080,6 +2302,19 @@ function EmptyState({ icon: Icon, title, hint }) {
       <Icon className="h-8 w-8 text-[#9A9488]" />
       <p className="text-[14px] font-medium">{title}</p>
       {hint && <p className="text-[12px] text-[#9A9488]">{hint}</p>}
+    </div>
+  );
+}
+function ErrorBanner({ message, onRetry }) {
+  return (
+    <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-[#F0821E]/30 bg-[#FBE0C4]/40 px-4 py-3">
+      <p className="text-[12px] md:text-[13px] text-[#7A3E0B]">{message}</p>
+      <button
+        onClick={onRetry}
+        className="shrink-0 rounded-md border border-[#7A3E0B]/30 px-3 py-1.5 text-[11px] md:text-[12px] font-semibold text-[#7A3E0B] hover:bg-[#F0821E]/10"
+      >
+        Retry
+      </button>
     </div>
   );
 }

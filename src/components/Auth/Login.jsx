@@ -87,9 +87,18 @@ const Login = () => {
         </div>
 
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-[#2d333f] mb-1.5">
-            Password
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label htmlFor="password" className="block text-sm font-medium text-[#2d333f]">
+              Password
+            </label>
+            <button
+              type="button"
+              onClick={() => navigate('/forgot-password')}
+              className="text-xs font-medium text-[#f06d00] hover:underline"
+            >
+              Forgot password?
+            </button>
+          </div>
           <div className="relative">
             <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input

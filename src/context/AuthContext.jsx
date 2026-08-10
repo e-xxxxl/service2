@@ -164,6 +164,38 @@ const verifyEmail = async (token) => {
     setIsEmailVerified(false);
   };
 
+  const forgotPassword = async (email) => {
+    const response = await fetch(`${API_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || 'Failed to send password reset email');
+    }
+
+    return result;
+  };
+
+  const resetPassword = async (token, password) => {
+    const response = await fetch(`${API_URL}/auth/reset-password/${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || 'Failed to reset password');
+    }
+
+    return result;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -174,6 +206,8 @@ const verifyEmail = async (token) => {
         signup,
         verifyEmail,
         resendVerification,
+        forgotPassword,
+        resetPassword,
         logout,
       }}
     >

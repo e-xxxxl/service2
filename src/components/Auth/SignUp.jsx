@@ -7,7 +7,8 @@ import EmailVerification from './EmailVerification';
 import AuthShell from './AuthLayout';
 import Navbar from '../Navbar/Navbar';
 import GoogleButton from './GoogleButton';
-import { SERVICE_CATEGORIES, NIGERIAN_STATES, CITIES_BY_STATE } from '../../constants/serviceCategories';
+import { SERVICE_CATEGORIES } from '../../constants/serviceCategories';
+import { useLocations } from '../../hooks/useLocations';
 
 const PASSWORD_RULES = [
   { key: 'minLength', label: 'At least 8 characters', test: (p) => p.length >= 8 },
@@ -47,7 +48,8 @@ const SignUp = () => {
     city: '',
   });
 
-  const citiesForState = formData.state && CITIES_BY_STATE[formData.state] ? CITIES_BY_STATE[formData.state] : [];
+  const { states: NIGERIAN_STATES, getLgas } = useLocations();
+  const citiesForState = getLgas(formData.state);
 
   const handleChange = (e) => {
     const { name, value } = e.target;

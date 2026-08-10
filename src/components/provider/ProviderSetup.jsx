@@ -1,23 +1,18 @@
 // components/provider/ProviderSetup.jsx
 import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Camera, Upload, CheckCircle, AlertCircle, ArrowRight,
   Shield, MapPin, Phone, User, Briefcase, Tag, CreditCard
 } from 'lucide-react';
 import { SERVICE_CATEGORIES } from '../../constants/serviceCategories';
-
-const NIGERIAN_STATES = [
-  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue",
-  "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu",
-  "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi",
-  "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo",
-  "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara",
-  "Abuja (FCT)"
-];
+import { useLocations } from '../../hooks/useLocations';
 
 export default function ProviderSetup() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isResubmit = searchParams.get('resubmit') === 'true';
+  const { states: NIGERIAN_STATES, getLgas } = useLocations();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -41,7 +36,8 @@ export default function ProviderSetup() {
   const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
 
   const handleChange = (e) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value, ...(name === 'state' ? { city: '' } : {}) }));
   };
 
   const handleFileUpload = (e, type) => {
@@ -98,7 +94,8 @@ export default function ProviderSetup() {
       if (ninDocument) formDataToSend.append('ninDocument', ninDocument);
       if (selfiePhoto) formDataToSend.append('selfiePhoto', selfiePhoto);
 
-      const res = await fetch(`${API_URL}/provider/setup-profile`, {
+      const endpoint = isResubmit ? 'resubmit-verification' : 'setup-profile';
+      const res = await fetch(`${API_URL}/provider/${endpoint}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formDataToSend
@@ -265,10 +262,12 @@ export default function ProviderSetup() {
             </div>
 
             <div>
-              <label className="block text-[13px] font-semibold text-[#1E2420] mb-2">City *</label>
-              <input type="text" name="city" value={formData.city} onChange={handleChange}
-                placeholder="e.g., Ikeja, Lekki"
-                className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34]" />
+              <label className="block text-[13px] font-semibold text-[#1E2420] mb-2">City / LGA *</label>
+              <select name="city" value={formData.city} onChange={handleChange} disabled={!formData.state}
+                className="w-full rounded-lg border border-[#E2E0D9] px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34] disabled:opacity-50 disabled:bg-[#F7F6F2]">
+                <option value="">{formData.state ? 'Select city / LGA' : 'Select a state first'}</option>
+                {getLgas(formData.state).map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
 
             <div>

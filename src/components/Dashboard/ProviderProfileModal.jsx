@@ -147,12 +147,6 @@ export default function ProviderProfileModal({ providerId, onClose, onMessage, o
                 <MapPin className="h-4 w-4 text-[#9A9488]" />
                 <span>{provider.location || 'Location not specified'}</span>
               </div>
-              {/* {provider.phone && (
-                <div className="flex items-center gap-2 text-[13px] text-[#55605A]">
-                  <Phone className="h-4 w-4 text-[#9A9488]" />
-                  <span>{provider.phone}</span>
-                </div>
-              )} */}
               <div className="flex items-center gap-2 text-[13px] text-[#55605A]">
                 <User className="h-4 w-4 text-[#9A9488]" />
                 <span>Team size: {provider.teamSize || 1}</span>

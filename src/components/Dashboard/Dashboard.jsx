@@ -38,13 +38,13 @@ import {
 } from "lucide-react";
 import logoIcon from "../../assets/dashlogo.png";
 import { useCustomerDashboard } from "../../hooks/useCustomerDashboard";
-import {
-  SERVICE_CATEGORIES,
-  CITIES_BY_STATE,
-} from "../../constants/serviceCategories";
+import { SERVICE_CATEGORIES } from "../../constants/serviceCategories";
+import { useLocations } from "../../hooks/useLocations";
+import { useSocket } from "../../hooks/useSocket";
 import ProviderProfileModal from "./ProviderProfileModal";
-
-const DEFAULT_STATES = Object.keys(CITIES_BY_STATE);
+import PaystackPaymentModal from "../payment/PaystackPaymentModal";
+import ContactReveal from "../payment/ContactReveal";
+import { useAuth } from "../../context/AuthContext";
 
 const NAV_CONFIG = [
   { id: "dashboard", label: "Home", icon: LayoutGrid },
@@ -249,7 +249,6 @@ function CustomerQuoteBubble({
   onReject,
   onPay,
   accepting,
-  paying,
 }) {
   const quote = message.quote;
   const payment = message.payment;
@@ -281,44 +280,6 @@ function CustomerQuoteBubble({
             </div>
           )}
         </div>
-      </div>
-    );
-  }
-  if (message.messageType === "payment_requested") {
-    return (
-      <div className="bg-white border-2 border-[#F0821E]/30 rounded-2xl p-5 max-w-[340px] w-full shadow-sm">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="h-12 w-12 rounded-full bg-[#F0821E]/10 flex items-center justify-center">
-            <CreditCard className="h-6 w-6 text-[#F0821E]" />
-          </div>
-          <div>
-            <p className="text-[15px] font-semibold">Payment Required</p>
-          </div>
-        </div>
-        <div className="bg-[#F7F6F2] rounded-xl p-4 mb-4">
-          <div className="flex justify-between items-center">
-            <span className="text-[14px] font-semibold">Amount</span>
-            <span className="text-[24px] font-bold">
-              ₦{(payment?.amount || quote?.totalAmount || 0).toLocaleString()}
-            </span>
-          </div>
-        </div>
-        <button
-          onClick={() => onPay?.(message)}
-          disabled={paying}
-          className="w-full bg-[#F0821E] text-white py-3 rounded-xl text-[14px] font-semibold hover:bg-[#D5720F] disabled:opacity-50 flex items-center justify-center gap-2"
-        >
-          {paying ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />{" "}
-              Processing...
-            </>
-          ) : (
-            <>
-              <CreditCard className="h-4 w-4" /> Pay Now
-            </>
-          )}
-        </button>
       </div>
     );
   }
@@ -423,10 +384,26 @@ function CustomerQuoteBubble({
         </div>
       )}
       {quote?.status === "accepted" && (
+        <div className="space-y-3">
+          <div className="bg-[#1E7A34]/5 border border-[#1E7A34]/20 rounded-xl p-3 flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-[#1E7A34]" />
+            <span className="text-[13px] font-medium text-[#1E7A34]">
+              Accepted - awaiting payment
+            </span>
+          </div>
+          <button
+            onClick={() => onPay?.(message)}
+            className="w-full bg-[#F0821E] text-white py-3 rounded-xl text-[14px] font-semibold hover:bg-[#D5720F] flex items-center justify-center gap-2"
+          >
+            <CreditCard className="h-4 w-4" /> Pay Now
+          </button>
+        </div>
+      )}
+      {quote?.status === "paid" && (
         <div className="bg-[#1E7A34]/5 border border-[#1E7A34]/20 rounded-xl p-3 flex items-center gap-2">
           <CheckCircle2 className="h-5 w-5 text-[#1E7A34]" />
           <span className="text-[13px] font-medium text-[#1E7A34]">
-            Accepted - Awaiting Payment
+            Paid - job is active
           </span>
         </div>
       )}
@@ -450,107 +427,13 @@ function CustomerQuoteBubble({
 }
 
 // ========== PAYMENT MODAL ==========
-function PaymentModal({ onClose, onConfirm, amount }) {
-  const [method, setMethod] = useState("bank_transfer");
-  const [reference, setReference] = useState("");
-  const [loading, setLoading] = useState(false);
-  const hc = async () => {
-    setLoading(true);
-    try {
-      await onConfirm?.({
-        paymentMethod: method,
-        paymentReference: reference || `PAY-${Date.now()}`,
-      });
-      onClose?.();
-    } catch (e) {
-    } finally {
-      setLoading(false);
-    }
-  };
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md">
-        <div className="flex items-center justify-between p-5 border-b">
-          <h3 className="text-[16px] font-semibold">Confirm Payment</h3>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-[#F7F6F2]"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="p-5 space-y-5">
-          <div className="bg-[#1E7A34]/5 border border-[#1E7A34]/20 rounded-xl p-5 text-center">
-            <p className="text-[13px] mb-1">Amount</p>
-            <p className="text-[32px] font-bold text-[#1E7A34]">
-              ₦{(amount || 0).toLocaleString()}
-            </p>
-          </div>
-          <div>
-            <label className="text-[13px] font-semibold mb-3 block">
-              Method
-            </label>
-            <div className="space-y-2">
-              {[
-                { id: "bank_transfer", label: "Bank Transfer" },
-                { id: "card", label: "Card Payment" },
-                { id: "cash", label: "Cash Payment" },
-              ].map((o) => (
-                <button
-                  key={o.id}
-                  onClick={() => setMethod(o.id)}
-                  className={`w-full flex items-center gap-3 p-4 rounded-xl border text-left transition-all ${method === o.id ? "border-[#1E7A34] bg-[#1E7A34]/5" : "border-[#E2E0D9] hover:bg-[#F7F6F2]"}`}
-                >
-                  <CreditCard
-                    className={`h-5 w-5 ${method === o.id ? "text-[#1E7A34]" : "text-[#9A9488]"}`}
-                  />
-                  <span className="text-[14px] font-medium">{o.label}</span>
-                  {method === o.id && (
-                    <CheckCircle2 className="h-4 w-4 text-[#1E7A34] ml-auto" />
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="text-[13px] font-semibold mb-2 block">
-              Reference (Optional)
-            </label>
-            <input
-              type="text"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              placeholder="Transaction ID"
-              className="w-full rounded-xl border px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34]"
-            />
-          </div>
-        </div>
-        <div className="p-5 border-t flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 rounded-xl border text-[14px] font-semibold"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={hc}
-            disabled={loading}
-            className="flex-1 bg-[#1E7A34] text-white py-3 rounded-xl text-[14px] font-semibold hover:bg-[#166B2C] disabled:opacity-50"
-          >
-            {loading ? "Processing..." : "Confirm Payment"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ========== CUSTOMER PROFILE ==========
 
 function CustomerProfileView() {
   const [editing, setEditing] = useState(false); const [saving, setSaving] = useState(false);
   const [sm, setSm] = useState(''); const [em, setEm] = useState('');
   const [fd, setFd] = useState({ fullName: '', email: '', phone: '', state: '', city: '' });
+  const { states: NIGERIAN_STATES, getLgas } = useLocations();
 
   useEffect(() => {
     const token = localStorage.getItem('authToken');
@@ -562,7 +445,7 @@ function CustomerProfileView() {
     }
   }, []);
 
-  const citiesForState = fd.state && CITIES_BY_STATE[fd.state] ? CITIES_BY_STATE[fd.state] : [];
+  const citiesForState = getLgas(fd.state);
 
   const handleSave = async () => {
     setSaving(true); setSm(''); setEm('');
@@ -618,6 +501,8 @@ function MessagesTab({
   onSendMessage,
   selectedChat,
   onSelectChat,
+  socket,
+  socketConnected,
 }) {
   const [messageText, setMessageText] = useState("");
   const [chatMessages, setChatMessages] = useState([]);
@@ -625,10 +510,14 @@ function MessagesTab({
   const [warning, setWarning] = useState("");
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
   const [acceptingQuote, setAcceptingQuote] = useState(false);
-  const [paying, setPaying] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState(null);
+  const [contactUnlocked, setContactUnlocked] = useState(false);
+  const [providerTyping, setProviderTyping] = useState(false);
+  const [seenByProvider, setSeenByProvider] = useState(false);
+  const { user } = useAuth();
   const messagesEndRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -642,6 +531,50 @@ function MessagesTab({
       setShowChatOnMobile(true);
     }
   }, [selectedChat]);
+
+  // Join the conversation's room for as long as it's open, and append
+  // incoming messages live instead of waiting for a refetch.
+  useEffect(() => {
+    if (!socket || !selectedChat?.id) return;
+    const conversationId = selectedChat.id;
+    socket.emit("join:conversation", conversationId);
+
+    const onMessage = ({ conversationId: cid, message }) => {
+      if (cid !== conversationId) return;
+      // Messages sent from this side are already shown optimistically by
+      // handleSend - only live-append messages coming from the provider.
+      if (message.senderModel === "User") return;
+      setChatMessages((prev) => {
+        if (prev.some((m) => (m._id || m.id) === (message._id || message.id))) return prev;
+        return [...prev, { ...message, messageType: message.messageType || "text" }];
+      });
+      setProviderTyping(false);
+    };
+    const onTypingStart = ({ conversationId: cid }) => {
+      if (cid === conversationId) setProviderTyping(true);
+    };
+    const onTypingStop = ({ conversationId: cid }) => {
+      if (cid === conversationId) setProviderTyping(false);
+    };
+    const onRead = ({ conversationId: cid }) => {
+      if (cid === conversationId) setSeenByProvider(true);
+    };
+
+    socket.on("message:received", onMessage);
+    socket.on("typing:start", onTypingStart);
+    socket.on("typing:stop", onTypingStop);
+    socket.on("messages:read", onRead);
+
+    return () => {
+      socket.emit("leave:conversation", conversationId);
+      socket.off("message:received", onMessage);
+      socket.off("typing:start", onTypingStart);
+      socket.off("typing:stop", onTypingStop);
+      socket.off("messages:read", onRead);
+      setProviderTyping(false);
+      setSeenByProvider(false);
+    };
+  }, [socket, selectedChat?.id]);
 
   const fetchMessages = async (conversationId) => {
     try {
@@ -662,6 +595,8 @@ function MessagesTab({
           return m;
         });
         setChatMessages(processed);
+        setContactUnlocked(!!data.data.contactUnlocked);
+        socket?.emit("messages:read", { conversationId });
       }
     } catch (err) {
       console.error(err);
@@ -695,6 +630,7 @@ function MessagesTab({
           createdAt: new Date().toISOString(),
         },
       ]);
+      setSeenByProvider(false);
       setMessageText("");
     } catch (err) {
       setWarning(err.message);
@@ -752,35 +688,10 @@ function MessagesTab({
     setPaymentMessage(message);
     setShowPaymentModal(true);
   };
-  const handleConfirmPayment = async (paymentData) => {
-    setPaying(true);
-    try {
-      const token = localStorage.getItem("authToken");
-      const API_URL =
-        import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
-      const cid = selectedChat?.id;
-      const mid = paymentMessage._id || paymentMessage.id;
-      const res = await fetch(
-        `${API_URL}/customer/confirm-payment/${cid}/${mid}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(paymentData),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setShowPaymentModal(false);
-      setPaymentMessage(null);
-      fetchMessages(cid);
-    } catch (err) {
-      setWarning(err.message);
-    } finally {
-      setPaying(false);
-    }
+  const handlePaymentSuccess = () => {
+    setShowPaymentModal(false);
+    setPaymentMessage(null);
+    fetchMessages(selectedChat?.id);
   };
 
   const handleSelectChatMobile = (chat) => {
@@ -805,13 +716,14 @@ function MessagesTab({
       style={{ height: "calc(100vh - 120px)" }}
     >
       {showPaymentModal && (
-        <PaymentModal
+        <PaystackPaymentModal
           onClose={() => setShowPaymentModal(false)}
-          onConfirm={handleConfirmPayment}
-          amount={
-            paymentMessage?.payment?.amount ||
-            paymentMessage?.quote?.totalAmount
-          }
+          onSuccess={handlePaymentSuccess}
+          conversationId={selectedChat?.id}
+          messageId={paymentMessage?._id || paymentMessage?.id}
+          amount={paymentMessage?.quote?.totalAmount}
+          providerName={selectedChat?.name}
+          customerEmail={user?.email}
         />
       )}
       <div
@@ -883,6 +795,11 @@ function MessagesTab({
                   </p>
                 </div>
               </div>
+              <ContactReveal
+                role="customer"
+                conversationId={selectedChat.id}
+                contactUnlocked={contactUnlocked}
+              />
             </div>
             <div className="px-3 md:px-5 py-1.5 md:py-2 bg-[#FFF8F0] border-b flex items-center gap-2 text-[10px] md:text-[11px] text-[#B85E10] flex-shrink-0">
               <Shield className="h-3 md:h-3.5 w-3 md:w-3.5 flex-shrink-0" />
@@ -891,6 +808,12 @@ function MessagesTab({
                 allowed.
               </span>
             </div>
+            {socket && !socketConnected && (
+              <div className="px-3 md:px-5 py-1.5 bg-[#FFF3F3] border-b flex items-center gap-2 text-[10px] md:text-[11px] text-red-600 flex-shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+                Reconnecting... messages will send once you're back online.
+              </div>
+            )}
             <div className="flex-1 overflow-y-auto px-3 md:px-5 py-3 md:py-4 space-y-3 md:space-y-4">
               {chatMessages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
@@ -918,7 +841,6 @@ function MessagesTab({
                           onReject={handleRejectQuote}
                           onPay={handlePayNow}
                           accepting={acceptingQuote}
-                          paying={paying}
                         />
                       </div>
                     );
@@ -935,14 +857,27 @@ function MessagesTab({
                       >
                         <p className="text-[13px] md:text-[14px]">{msg.text}</p>
                         <p
-                          className={`text-[9px] md:text-[10px] mt-1 ${isMine ? "text-white/70" : "text-[#9A9488]"}`}
+                          className={`text-[9px] md:text-[10px] mt-1 flex items-center gap-1 ${isMine ? "text-white/70" : "text-[#9A9488]"}`}
                         >
                           {formatNigerianTime(msg.createdAt)}
+                          {isMine && i === chatMessages.length - 1 && seenByProvider && (
+                            <span>· Seen</span>
+                          )}
                         </p>
                       </div>
                     </div>
                   );
                 })
+              )}
+              {providerTyping && (
+                <div className="flex items-center gap-1.5 text-[11px] text-[#9A9488] px-1">
+                  <span className="flex gap-0.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#9A9488] animate-bounce [animation-delay:-0.3s]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#9A9488] animate-bounce [animation-delay:-0.15s]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#9A9488] animate-bounce" />
+                  </span>
+                  typing...
+                </div>
               )}
               <div ref={messagesEndRef} />
             </div>
@@ -964,7 +899,16 @@ function MessagesTab({
               <div className="flex items-end gap-2 md:gap-3">
                 <textarea
                   value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
+                  onChange={(e) => {
+                    setMessageText(e.target.value);
+                    if (socket && selectedChat?.id) {
+                      socket.emit("typing:start", { conversationId: selectedChat.id });
+                      clearTimeout(typingTimeoutRef.current);
+                      typingTimeoutRef.current = setTimeout(() => {
+                        socket.emit("typing:stop", { conversationId: selectedChat.id });
+                      }, 2000);
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
@@ -1187,7 +1131,7 @@ function SupportTab() {
 // ========== MAIN DASHBOARD ==========
 export default function Dashboard({
   categories,
-  states = DEFAULT_STATES,
+  states,
   onCompleteProfile,
   onOpenSettings,
   onLogout,
@@ -1221,6 +1165,7 @@ export default function Dashboard({
   const [selectedProviderForProfile, setSelectedProviderForProfile] =
     useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const { socket, connected: socketConnected } = useSocket();
 
   useEffect(() => {
     sessionStorage.setItem("activeView", activeView);
@@ -1228,6 +1173,21 @@ export default function Dashboard({
   useEffect(() => {
     setSidebarOpen(false);
   }, [activeView]);
+
+  // Live updates: a new message or notification anywhere refreshes the
+  // dashboard payload (conversation list, unread badges, notifications)
+  // instead of waiting on the 15s poll. The open conversation thread itself
+  // is updated separately, directly, inside MessagesTab for instant feel.
+  useEffect(() => {
+    if (!socket) return;
+    const onUpdate = () => refetch();
+    socket.on("message:notification", onUpdate);
+    socket.on("notification:new", onUpdate);
+    return () => {
+      socket.off("message:notification", onUpdate);
+      socket.off("notification:new", onUpdate);
+    };
+  }, [socket, refetch]);
 
   const unreadMessages = (conversations || []).filter((c) => c.unread).length;
   const unreadNotifications = (notifications || []).filter(
@@ -1237,9 +1197,10 @@ export default function Dashboard({
     messages: unreadMessages,
     notifications: unreadNotifications,
   };
-  const citiesForState =
-    state && CITIES_BY_STATE[state] ? CITIES_BY_STATE[state] : [];
+  const { states: locationStates, getLgas } = useLocations();
+  const citiesForState = getLgas(state);
   const cats = categories || Object.values(SERVICE_CATEGORIES).flat();
+  const searchStates = states || locationStates;
 
   const handleMessagePro = (pro) => {
     const ec = conversations?.find((c) => c.professionalId === pro.id);
@@ -1390,6 +1351,8 @@ export default function Dashboard({
               onSendMessage={handleSendMessage}
               selectedChat={selectedChat}
               onSelectChat={handleSelectChat}
+              socket={socket}
+              socketConnected={socketConnected}
             />
           ) : activeView === "support" ? (
             <SupportTab />
@@ -1517,7 +1480,7 @@ export default function Dashboard({
                     className="rounded-md border bg-[#FBFAF8] px-3 py-2.5 text-[12px] md:text-[13px]"
                   >
                     <option value="">State</option>
-                    {states.map((s) => (
+                    {searchStates.map((s) => (
                       <option key={s}>{s}</option>
                     ))}
                   </select>

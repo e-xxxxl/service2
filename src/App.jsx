@@ -5,6 +5,8 @@ import { ProtectedRoute, PublicRoute } from "./components/ProtectedRoute.jsx";
 import { AdminProtectedRoute } from "./components/AdminProtectedRoute.jsx";
 import SignUp from "./components/Auth/SignUp";
 import Login from "./components/Auth/Login";
+import ForgotPassword from "./components/Auth/ForgotPassword.jsx";
+import ResetPassword from "./components/Auth/ResetPassword.jsx";
 import EmailVerification from "./components/Auth/EmailVerification.jsx";
 import Dashboard from "./components/Dashboard/Dashboard.jsx";
 import ProviderDashboard from "./components/Dashboard/ProviderDashboard.jsx";
@@ -74,6 +76,15 @@ function App() {
                   />
                   <Route path="/verify-email" element={<EmailVerification />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
+                  <Route
+                    path="/forgot-password"
+                    element={
+                      <PublicRoute>
+                        <ForgotPassword />
+                      </PublicRoute>
+                    }
+                  />
+                  <Route path="/reset-password/:token" element={<ResetPassword />} />
 
                   {/* ---------- Customer Dashboard (protected) ---------- */}
                   <Route
@@ -96,14 +107,14 @@ function App() {
                   />
 
                   {/* ---------- Provider Setup (protected, provider only) ---------- */}
-                  {/* <Route
+                  <Route
                     path="/provider/setup"
                     element={
                       <ProtectedRoute allowedRoles={["provider"]}>
                         <ProviderSetup />
                       </ProtectedRoute>
                     }
-                  /> */}
+                  />
 
                   {/* ---------- 404 ---------- */}
                   <Route
