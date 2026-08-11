@@ -13,6 +13,7 @@ import {
   LogOut,
   TrendingUp,
   ChevronRight,
+  ChevronLeft,
   MapPin,
   ToggleLeft,
   ToggleRight,
@@ -33,6 +34,11 @@ import {
   Edit,
   Save,
   Eye,
+  Calendar,
+  HelpCircle,
+  Menu,
+  PlayCircle,
+  Flag,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import logoIcon from "../../assets/dashlogo.png";
@@ -41,6 +47,7 @@ import { SERVICE_CATEGORIES } from "../../constants/serviceCategories";
 import { useLocations } from "../../hooks/useLocations";
 import { useSocket } from "../../hooks/useSocket";
 import ContactReveal from "../payment/ContactReveal";
+import SupportChat from "../support/SupportChat";
 
 const NAV_CONFIG = [
   { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
@@ -51,6 +58,7 @@ const NAV_CONFIG = [
     badgeKey: "messages",
   },
   { id: "wallet", label: "Wallet", icon: CreditCard },
+  { id: "help", label: "Help", icon: HelpCircle },
   {
     id: "notifications",
     label: "Alerts",
@@ -119,7 +127,12 @@ export default function ProviderDashboard({ onLogout }) {
   const [isAvailable, setIsAvailable] = useState(true);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [newMessage, setNewMessage] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { socket, connected: socketConnected } = useSocket();
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [activeView]);
 
   useEffect(() => {
     if (!socket) return;
@@ -154,21 +167,38 @@ export default function ProviderDashboard({ onLogout }) {
 
   return (
     <div className="min-h-screen w-full bg-[#F5F4F0] text-[#1E2420] font-['Inter',sans-serif]">
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
       <div className="mx-auto flex max-w-[1400px]">
-        <aside className="sticky top-0 hidden h-screen w-[240px] shrink-0 flex-col justify-between border-r border-[#E2E0D9] bg-white px-4 py-6 md:flex">
+        <aside
+          className={`fixed md:sticky top-0 z-50 h-screen w-[240px] shrink-0 flex-col justify-between border-r border-[#E2E0D9] bg-white px-4 py-6 transition-transform duration-300 overflow-y-auto md:translate-x-0 md:flex ${sidebarOpen ? "translate-x-0 flex" : "-translate-x-full hidden"}`}
+        >
           <div>
-            <div className="mb-8 flex items-center gap-3 px-2">
-              <img
-                src={logoIcon}
-                alt="logo"
-                className="h-8 w-8 shrink-0 object-contain"
-              />
-              <div>
-                <span className="text-[14px] font-semibold">
-                  9jaTradiesPages
-                </span>
-                <p className="text-[10px] text-[#9A9488]">Provider Portal</p>
+            <div className="mb-8 flex items-center justify-between gap-3 px-2">
+              <div className="flex items-center gap-3">
+                <img
+                  src={logoIcon}
+                  alt="logo"
+                  className="h-8 w-8 shrink-0 object-contain"
+                />
+                <div>
+                  <span className="text-[14px] font-semibold">
+                    9jaTradiesPages
+                  </span>
+                  <p className="text-[10px] text-[#9A9488]">Provider Portal</p>
+                </div>
               </div>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="md:hidden text-[#9A9488]"
+                aria-label="Close menu"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
             <nav className="space-y-1">
               {NAV_CONFIG.map((item) => {
@@ -257,16 +287,40 @@ export default function ProviderDashboard({ onLogout }) {
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1">
+        <main className="min-w-0 flex-1 pb-16 md:pb-0">
+          <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-[#E2E0D9] sticky top-0 z-30">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="text-[#55605A]"
+              aria-label="Open menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <span className="text-[13px] font-semibold">9jaTradiesPages</span>
+            <button
+              onClick={() => setActiveView("notifications")}
+              className="relative"
+              aria-label="Notifications"
+            >
+              <Bell className="h-5 w-5 text-[#55605A]" />
+              {unreadNotifications > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[#F0821E]" />
+              )}
+            </button>
+          </div>
           {activeView === "dashboard" && (
             <DashboardView
               providerName={providerName}
               companyName={companyName}
               isAvailable={isAvailable}
-              onToggleAvailability={() => {
+              onToggleAvailability={async () => {
                 const s = !isAvailable;
                 setIsAvailable(s);
-                updateAvailability?.(s);
+                try {
+                  await updateAvailability?.(s);
+                } catch (e) {
+                  setIsAvailable(!s); // revert - the update didn't actually take
+                }
               }}
               profileCompletion={profileCompletion}
               verificationStatus={verificationStatus}
@@ -300,6 +354,11 @@ export default function ProviderDashboard({ onLogout }) {
             />
           )}
           {activeView === "wallet" && <WalletView />}
+          {activeView === "help" && (
+            <div className="px-5 py-6 md:px-8 md:py-8">
+              <SupportChat />
+            </div>
+          )}
           {activeView === "notifications" && (
             <NotificationsView
               notifications={notifications}
@@ -335,7 +394,8 @@ export default function ProviderDashboard({ onLogout }) {
         </main>
       </div>
       <nav className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-around border-t border-[#E2E0D9] bg-white/95 px-2 py-2 backdrop-blur md:hidden">
-        {NAV_CONFIG.map((item) => {
+        {/* Help/Settings/Logout live in the hamburger drawer - keep the bottom bar to primary, frequent actions only. */}
+        {NAV_CONFIG.filter((item) => item.id !== "help" && item.id !== "profile").map((item) => {
           const Icon = item.icon;
           const isActive = activeView === item.id;
           const badge = item.badgeKey ? badgeCounts[item.badgeKey] : 0;
@@ -395,9 +455,13 @@ function DashboardView({
               month: "long",
             })}
           </p>
-          <h1 className="text-[24px] font-semibold">
-            Welcome back, {providerName || "Pro"}
-          </h1>
+          {loading?.dashboard && !providerName ? (
+            <div className="h-[30px] w-[220px] animate-pulse rounded-md bg-[#EAE8E1] mt-1" />
+          ) : (
+            <h1 className="text-[24px] font-semibold">
+              Welcome back, {providerName || "there"}
+            </h1>
+          )}
           {companyName && (
             <p className="text-[14px] text-[#55605A] mt-1">{companyName}</p>
           )}
@@ -962,7 +1026,7 @@ function ProfileView({
                         className="w-full rounded-lg border px-4 py-3 text-[14px]"
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-[13px] font-semibold mb-2">
                           State *
@@ -975,6 +1039,7 @@ function ProfileView({
                               businessAddress: {
                                 ...p.businessAddress,
                                 state: e.target.value,
+                                city: "",
                               },
                             }))
                           }
@@ -1126,7 +1191,7 @@ function ProfileView({
                     </p>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[13px] font-semibold mb-2">
                       Years of Exp.
@@ -1243,40 +1308,7 @@ function ProfileView({
                     </p>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[13px] font-semibold mb-2">
-                      City
-                    </label>
-                    {editingAddress ? (
-                      <select
-                        value={pd.businessAddress.city}
-                        onChange={(e) =>
-                          setPd((p) => ({
-                            ...p,
-                            businessAddress: {
-                              ...p.businessAddress,
-                              city: e.target.value,
-                            },
-                          }))
-                        }
-                        className="w-full rounded-lg border px-4 py-3 text-[14px]"
-                      >
-                        <option value="">Select</option>
-                        {(getLgas(pd.businessAddress.state)).map(
-                          (c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ),
-                        )}
-                      </select>
-                    ) : (
-                      <p className="text-[14px] text-[#1E2420] bg-[#F7F6F2] rounded-lg px-4 py-3">
-                        {pd.businessAddress.city || "Not set"}
-                      </p>
-                    )}
-                  </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[13px] font-semibold mb-2">
                       State
@@ -1290,6 +1322,7 @@ function ProfileView({
                             businessAddress: {
                               ...p.businessAddress,
                               state: e.target.value,
+                              city: "",
                             },
                           }))
                         }
@@ -1305,6 +1338,40 @@ function ProfileView({
                     ) : (
                       <p className="text-[14px] text-[#1E2420] bg-[#F7F6F2] rounded-lg px-4 py-3">
                         {pd.businessAddress.state || "Not set"}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-2">
+                      City / LGA
+                    </label>
+                    {editingAddress ? (
+                      <select
+                        value={pd.businessAddress.city}
+                        disabled={!pd.businessAddress.state}
+                        onChange={(e) =>
+                          setPd((p) => ({
+                            ...p,
+                            businessAddress: {
+                              ...p.businessAddress,
+                              city: e.target.value,
+                            },
+                          }))
+                        }
+                        className="w-full rounded-lg border px-4 py-3 text-[14px] disabled:opacity-50"
+                      >
+                        <option value="">{pd.businessAddress.state ? "Select" : "Select a state first"}</option>
+                        {(getLgas(pd.businessAddress.state)).map(
+                          (c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    ) : (
+                      <p className="text-[14px] text-[#1E2420] bg-[#F7F6F2] rounded-lg px-4 py-3">
+                        {pd.businessAddress.city || "Not set"}
                       </p>
                     )}
                   </div>
@@ -1353,12 +1420,19 @@ function MessagesView({
   const [contactUnlocked, setContactUnlocked] = useState(false);
   const [customerTyping, setCustomerTyping] = useState(false);
   const [seenByCustomer, setSeenByCustomer] = useState(false);
+  const [bookingStatus, setBookingStatus] = useState("none");
+  const [jobDates, setJobDates] = useState(null);
+  const [jobActionLoading, setJobActionLoading] = useState(false);
+  const [showChatOnMobile, setShowChatOnMobile] = useState(false);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
+  useEffect(() => {
+    if (selectedConversation?.id) setShowChatOnMobile(true);
+  }, [selectedConversation?.id]);
   useEffect(() => {
     if (selectedConversation?.id) {
       fetchMessages(selectedConversation.id);
@@ -1423,10 +1497,33 @@ function MessagesView({
         const conv = data.data.find((c) => c.id === conversationId);
         setChatMessages(conv?.messages || []);
         setContactUnlocked(!!conv?.contactUnlocked);
+        setBookingStatus(conv?.bookingStatus || "none");
+        setJobDates(conv?.job || null);
         socket?.emit("messages:read", { conversationId });
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleJobAction = async (action) => {
+    if (!selectedConversation?.id || jobActionLoading) return;
+    setJobActionLoading(true);
+    try {
+      const token = localStorage.getItem("authToken");
+      const API_URL = import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+      const res = await fetch(`${API_URL}/provider/jobs/${selectedConversation.id}/${action}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      await fetchMessages(selectedConversation.id);
+    } catch (err) {
+      setWarning(err.message);
+      setTimeout(() => setWarning(""), 5000);
+    } finally {
+      setJobActionLoading(false);
     }
   };
 
@@ -1513,10 +1610,10 @@ function MessagesView({
       : "C";
 
   return (
-    <div className="flex h-[calc(100vh-0px)]">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-116px)] md:h-[calc(100vh-0px)]">
       {showQuoteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-lg md:max-w-2xl max-h-[85vh] overflow-y-auto">
             <div className="sticky top-0 bg-white rounded-t-2xl z-10 flex items-center justify-between p-5 border-b">
               <div>
                 <h3 className="text-[16px] font-semibold">Send Quote</h3>
@@ -1540,7 +1637,7 @@ function MessagesView({
         </div>
       )}
 
-      <div className="w-[360px] border-r border-[#E2E0D9] bg-white flex flex-col">
+      <div className={`${showChatOnMobile ? "hidden" : "flex"} md:flex w-full md:w-[360px] border-r border-[#E2E0D9] bg-white flex-col flex-shrink-0`}>
         <div className="p-4 border-b">
           <h2 className="text-[18px] font-semibold mb-4">Messages</h2>
           <div className="relative">
@@ -1588,12 +1685,19 @@ function MessagesView({
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col bg-[#F5F4F0]">
+      <div className={`${!showChatOnMobile ? "hidden" : "flex"} md:flex flex-1 flex-col bg-[#F5F4F0] min-w-0`}>
         {selectedConversation ? (
           <>
-            <div className="flex items-center justify-between px-6 py-4 border-b bg-white">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1E7A34] text-[14px] font-semibold text-white">
+            <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b bg-white">
+              <div className="flex items-center gap-3 min-w-0">
+                <button
+                  onClick={() => setShowChatOnMobile(false)}
+                  className="md:hidden text-[#55605A] p-1 flex-shrink-0"
+                  aria-label="Back to conversations"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1E7A34] text-[14px] font-semibold text-white flex-shrink-0">
                   {gi(selectedConversation.customerName)}
                 </div>
                 <div>
@@ -1603,12 +1707,53 @@ function MessagesView({
                   <p className="text-[12px] text-[#55605A]">Customer</p>
                 </div>
               </div>
-              <ContactReveal
-                role="provider"
-                conversationId={selectedConversation.id}
-                contactUnlocked={contactUnlocked}
-              />
+              <div className="flex items-center gap-3">
+                {bookingStatus === "active" && (
+                  <button
+                    onClick={() => handleJobAction("start")}
+                    disabled={jobActionLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F0821E]/10 text-[#F0821E] text-[12px] font-semibold hover:bg-[#F0821E]/20 disabled:opacity-50"
+                  >
+                    <PlayCircle className="h-3.5 w-3.5" /> Start Job
+                  </button>
+                )}
+                {bookingStatus === "in_progress" && (
+                  <button
+                    onClick={() => handleJobAction("complete")}
+                    disabled={jobActionLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1E7A34]/10 text-[#1E7A34] text-[12px] font-semibold hover:bg-[#1E7A34]/20 disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Mark Complete
+                  </button>
+                )}
+                {bookingStatus === "completed" && (
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1E7A34]/10 text-[#1E7A34] text-[12px] font-semibold">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Completed
+                  </span>
+                )}
+                <ContactReveal
+                  role="provider"
+                  conversationId={selectedConversation.id}
+                  contactUnlocked={contactUnlocked}
+                />
+              </div>
             </div>
+            {jobDates?.deadline && bookingStatus !== "none" && bookingStatus !== "quote_sent" && (
+              <div className="px-5 py-2 bg-white border-b flex items-center gap-2 text-[11px] text-[#55605A]">
+                <Calendar className="h-3.5 w-3.5 text-[#9A9488]" />
+                Target completion: {new Date(jobDates.deadline).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
+                {jobDates.startedAt && (
+                  <span className="ml-3 text-[#9A9488]">
+                    Started {new Date(jobDates.startedAt).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}
+                  </span>
+                )}
+                {jobDates.completedAt && (
+                  <span className="ml-3 text-[#9A9488]">
+                    Completed {new Date(jobDates.completedAt).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}
+                  </span>
+                )}
+              </div>
+            )}
             <div className="px-5 py-2 bg-[#FFF8F0] border-b flex items-center gap-2 text-[11px] text-[#B85E10]">
               <Shield className="h-3.5 w-3.5" />
               Keep communication on the platform.
@@ -1634,6 +1779,8 @@ function MessagesView({
                     "quote_rejected",
                     "payment_requested",
                     "payment_confirmed",
+                    "job_started",
+                    "job_completed",
                   ].includes(msg.messageType);
                   if (isQuoteType)
                     return (
@@ -1799,6 +1946,28 @@ function ProviderQuoteBubble({ message }) {
         )}
       </div>
     );
+  if (message.messageType === "job_started")
+    return (
+      <div className="bg-[#F0821E]/5 border border-[#F0821E]/20 rounded-2xl p-4 max-w-[300px]">
+        <div className="flex items-center gap-2">
+          <PlayCircle className="h-5 w-5 text-[#F0821E]" />
+          <span className="text-[13px] font-semibold text-[#F0821E]">
+            Work started
+          </span>
+        </div>
+      </div>
+    );
+  if (message.messageType === "job_completed")
+    return (
+      <div className="bg-[#1E7A34]/5 border border-[#1E7A34]/20 rounded-2xl p-4 max-w-[300px]">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="h-5 w-5 text-[#1E7A34]" />
+          <span className="text-[13px] font-semibold text-[#1E7A34]">
+            Job marked complete
+          </span>
+        </div>
+      </div>
+    );
   return (
     <div className="bg-white border-2 border-[#1E7A34]/20 rounded-2xl p-5 max-w-[340px] shadow-sm">
       <div className="flex items-center gap-3 mb-4">
@@ -1844,11 +2013,11 @@ function ProviderQuoteBubble({ message }) {
         </div>
       )}
       <div className="space-y-2 mb-3">
-        {(quote?.laborCost || 0) > 0 && (
+        {(quote?.workmanshipCost || 0) > 0 && (
           <div className="flex justify-between text-[13px]">
-            <span>Labor</span>
+            <span>Workmanship</span>
             <span className="font-medium">
-              ₦{(quote.laborCost || 0).toLocaleString()}
+              ₦{(quote.workmanshipCost || 0).toLocaleString()}
             </span>
           </div>
         )}
@@ -1860,15 +2029,21 @@ function ProviderQuoteBubble({ message }) {
             </span>
           </div>
         )}
-        {(quote?.additionalFees || 0) > 0 && (
+        {(quote?.otherCosts || 0) > 0 && (
           <div className="flex justify-between text-[13px]">
-            <span>Fees</span>
+            <span>Other costs</span>
             <span className="font-medium">
-              ₦{(quote.additionalFees || 0).toLocaleString()}
+              ₦{(quote.otherCosts || 0).toLocaleString()}
             </span>
           </div>
         )}
       </div>
+      {(quote?.workmanshipCost || 0) > 0 && (
+        <div className="mb-3 flex items-center justify-between text-[11px] text-[#9A9488] px-1">
+          <span>Platform fee (15% of workmanship)</span>
+          <span>&minus; ₦{Math.round((quote.workmanshipCost || 0) * 0.15).toLocaleString()}</span>
+        </div>
+      )}
       <div className="bg-[#1E7A34]/5 rounded-xl p-3 flex items-center justify-between">
         <span className="text-[14px] font-semibold">Total</span>
         <span className="text-[20px] font-bold text-[#1E7A34]">
@@ -1880,101 +2055,143 @@ function ProviderQuoteBubble({ message }) {
 }
 
 // ========== QUOTE FORM ==========
+const PLATFORM_COMMISSION_RATE = 0.15;
+
 function QuoteForm({ customerName, onSend, onCancel }) {
   const [fd, setFd] = useState({
     serviceDescription: "",
     materials: "",
-    laborCost: "",
+    workmanshipCost: "",
     materialCost: "",
-    additionalFees: "",
+    otherCosts: "",
+    deadline: "",
   });
   const [loading, setLoading] = useState(false);
-  const total =
-    (Number(fd.laborCost) || 0) +
-    (Number(fd.materialCost) || 0) +
-    (Number(fd.additionalFees) || 0);
+  const workmanshipCost = Number(fd.workmanshipCost) || 0;
+  const materialCost = Number(fd.materialCost) || 0;
+  const otherCosts = Number(fd.otherCosts) || 0;
+  const total = workmanshipCost + materialCost + otherCosts;
+  const commission = Math.round(workmanshipCost * PLATFORM_COMMISSION_RATE);
+  const youReceive = total - commission;
+  const todayStr = new Date().toISOString().split("T")[0];
+
   return (
     <div className="p-5 space-y-5">
-      <div className="bg-[#F7F6F2] rounded-xl p-3 text-center">
+      <div className="bg-[#F7F6F2] rounded-xl p-3 text-center md:text-left md:flex md:items-center md:justify-between">
         <p className="text-[12px] text-[#9A9488]">Quote for</p>
         <p className="text-[14px] font-semibold">{customerName}</p>
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div>
+          <label className="flex items-center gap-2 text-[13px] font-semibold mb-2">
+            <Wrench className="h-4 w-4 text-[#1E7A34]" />
+            Service *
+          </label>
+          <textarea
+            name="serviceDescription"
+            value={fd.serviceDescription}
+            onChange={(e) =>
+              setFd((p) => ({ ...p, serviceDescription: e.target.value }))
+            }
+            rows={3}
+            placeholder="What work will you be doing?"
+            className="w-full rounded-xl border px-4 py-3 text-[14px] resize-none bg-[#FAFAF8]"
+          />
+        </div>
+        <div>
+          <label className="flex items-center gap-2 text-[13px] font-semibold mb-2">
+            <Package className="h-4 w-4 text-[#1E7A34]" />
+            Materials
+          </label>
+          <textarea
+            name="materials"
+            value={fd.materials}
+            onChange={(e) => setFd((p) => ({ ...p, materials: e.target.value }))}
+            rows={3}
+            placeholder="Materials you'll be supplying (optional)"
+            className="w-full rounded-xl border px-4 py-3 text-[14px] resize-none bg-[#FAFAF8]"
+          />
+        </div>
+      </div>
+
       <div>
         <label className="flex items-center gap-2 text-[13px] font-semibold mb-2">
-          <Wrench className="h-4 w-4 text-[#1E7A34]" />
-          Service *
+          <Calendar className="h-4 w-4 text-[#1E7A34]" />
+          Estimated completion date
         </label>
-        <textarea
-          name="serviceDescription"
-          value={fd.serviceDescription}
-          onChange={(e) =>
-            setFd((p) => ({ ...p, serviceDescription: e.target.value }))
-          }
-          rows={3}
-          className="w-full rounded-xl border px-4 py-3 text-[14px] resize-none bg-[#FAFAF8]"
+        <input
+          type="date"
+          value={fd.deadline}
+          min={todayStr}
+          onChange={(e) => setFd((p) => ({ ...p, deadline: e.target.value }))}
+          className="w-full md:w-1/2 rounded-lg border px-4 py-2.5 text-[14px] bg-white"
         />
       </div>
-      <div>
-        <label className="flex items-center gap-2 text-[13px] font-semibold mb-2">
-          <Package className="h-4 w-4 text-[#1E7A34]" />
-          Materials
-        </label>
-        <textarea
-          name="materials"
-          value={fd.materials}
-          onChange={(e) => setFd((p) => ({ ...p, materials: e.target.value }))}
-          rows={2}
-          className="w-full rounded-xl border px-4 py-3 text-[14px] resize-none bg-[#FAFAF8]"
-        />
-      </div>
-      <div className="bg-[#F7F6F2] rounded-xl p-4 space-y-3">
+
+      <div className="bg-[#F7F6F2] rounded-xl p-4 space-y-4">
         <h4 className="text-[13px] font-semibold">Cost</h4>
-        <div>
-          <label className="text-[12px] mb-1 block">Labor (₦)</label>
-          <input
-            type="number"
-            name="laborCost"
-            value={fd.laborCost}
-            onChange={(e) =>
-              setFd((p) => ({ ...p, laborCost: e.target.value }))
-            }
-            min="0"
-            className="w-full rounded-lg border px-4 py-2.5 text-[14px] bg-white"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="text-[12px] mb-1 block">Workmanship (₦) *</label>
+            <input
+              type="number"
+              name="workmanshipCost"
+              value={fd.workmanshipCost}
+              onChange={(e) =>
+                setFd((p) => ({ ...p, workmanshipCost: e.target.value }))
+              }
+              min="0"
+              placeholder="0"
+              className="w-full rounded-lg border px-4 py-2.5 text-[14px] bg-white"
+            />
+          </div>
+          <div>
+            <label className="text-[12px] mb-1 block">Materials (₦)</label>
+            <input
+              type="number"
+              name="materialCost"
+              value={fd.materialCost}
+              onChange={(e) =>
+                setFd((p) => ({ ...p, materialCost: e.target.value }))
+              }
+              min="0"
+              placeholder="0"
+              className="w-full rounded-lg border px-4 py-2.5 text-[14px] bg-white"
+            />
+          </div>
+          <div>
+            <label className="text-[12px] mb-1 block">Other costs (₦, optional)</label>
+            <input
+              type="number"
+              name="otherCosts"
+              value={fd.otherCosts}
+              onChange={(e) =>
+                setFd((p) => ({ ...p, otherCosts: e.target.value }))
+              }
+              min="0"
+              placeholder="0"
+              className="w-full rounded-lg border px-4 py-2.5 text-[14px] bg-white"
+            />
+          </div>
         </div>
-        <div>
-          <label className="text-[12px] mb-1 block">Materials (₦)</label>
-          <input
-            type="number"
-            name="materialCost"
-            value={fd.materialCost}
-            onChange={(e) =>
-              setFd((p) => ({ ...p, materialCost: e.target.value }))
-            }
-            min="0"
-            className="w-full rounded-lg border px-4 py-2.5 text-[14px] bg-white"
-          />
-        </div>
-        <div>
-          <label className="text-[12px] mb-1 block">Fees (₦)</label>
-          <input
-            type="number"
-            name="additionalFees"
-            value={fd.additionalFees}
-            onChange={(e) =>
-              setFd((p) => ({ ...p, additionalFees: e.target.value }))
-            }
-            min="0"
-            className="w-full rounded-lg border px-4 py-2.5 text-[14px] bg-white"
-          />
-        </div>
+
         <div className="border-t pt-3 flex items-center justify-between">
-          <span className="text-[14px] font-semibold">Total</span>
+          <span className="text-[14px] font-semibold">Customer pays</span>
           <span className="text-[22px] font-bold text-[#1E7A34]">
             ₦{total.toLocaleString()}
           </span>
         </div>
+        {workmanshipCost > 0 && (
+          <div className="rounded-lg bg-white border border-[#E2E0D9] px-3 py-2.5 flex items-center justify-between text-[12px]">
+            <span className="text-[#9A9488]">
+              Platform fee ({Math.round(PLATFORM_COMMISSION_RATE * 100)}% of workmanship) &minus; ₦{commission.toLocaleString()}
+            </span>
+            <span className="font-semibold text-[#1E2420]">You receive ₦{youReceive.toLocaleString()}</span>
+          </div>
+        )}
       </div>
+
       <div className="flex gap-3 pt-2">
         <button
           onClick={onCancel}

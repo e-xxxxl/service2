@@ -35,6 +35,7 @@ import {
   Edit,
   Save,
   Eye,
+  PlayCircle,
 } from "lucide-react";
 import logoIcon from "../../assets/dashlogo.png";
 import { useCustomerDashboard } from "../../hooks/useCustomerDashboard";
@@ -44,6 +45,7 @@ import { useSocket } from "../../hooks/useSocket";
 import ProviderProfileModal from "./ProviderProfileModal";
 import PaystackPaymentModal from "../payment/PaystackPaymentModal";
 import ContactReveal from "../payment/ContactReveal";
+import SupportChat from "../support/SupportChat";
 import { useAuth } from "../../context/AuthContext";
 
 const NAV_CONFIG = [
@@ -252,6 +254,26 @@ function CustomerQuoteBubble({
 }) {
   const quote = message.quote;
   const payment = message.payment;
+  if (message.messageType === "job_started") {
+    return (
+      <div className="bg-[#F0821E]/5 border border-[#F0821E]/20 rounded-2xl p-4 max-w-[320px] w-full">
+        <div className="flex items-center gap-2">
+          <PlayCircle className="h-5 w-5 text-[#F0821E]" />
+          <span className="text-[13px] font-semibold text-[#F0821E]">Work started</span>
+        </div>
+      </div>
+    );
+  }
+  if (message.messageType === "job_completed") {
+    return (
+      <div className="bg-[#1E7A34]/5 border border-[#1E7A34]/20 rounded-2xl p-4 max-w-[320px] w-full">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="h-5 w-5 text-[#1E7A34]" />
+          <span className="text-[13px] font-semibold text-[#1E7A34]">Job marked complete</span>
+        </div>
+      </div>
+    );
+  }
   if (message.messageType === "payment_confirmed") {
     return (
       <div className="bg-[#1E7A34]/5 border-2 border-[#1E7A34]/30 rounded-2xl p-5 max-w-[340px] w-full">
@@ -330,11 +352,11 @@ function CustomerQuoteBubble({
         </div>
       )}
       <div className="space-y-2 mb-4">
-        {(quote?.laborCost || 0) > 0 && (
+        {(quote?.workmanshipCost || 0) > 0 && (
           <div className="flex justify-between text-[13px]">
-            <span>Labor</span>
+            <span>Workmanship</span>
             <span className="font-medium">
-              ₦{(quote.laborCost || 0).toLocaleString()}
+              ₦{(quote.workmanshipCost || 0).toLocaleString()}
             </span>
           </div>
         )}
@@ -346,15 +368,21 @@ function CustomerQuoteBubble({
             </span>
           </div>
         )}
-        {(quote?.additionalFees || 0) > 0 && (
+        {(quote?.otherCosts || 0) > 0 && (
           <div className="flex justify-between text-[13px]">
-            <span>Fees</span>
+            <span>Other costs</span>
             <span className="font-medium">
-              ₦{(quote.additionalFees || 0).toLocaleString()}
+              ₦{(quote.otherCosts || 0).toLocaleString()}
             </span>
           </div>
         )}
       </div>
+      {quote?.deadline && (
+        <div className="flex items-center gap-1.5 text-[12px] text-[#9A9488] mb-4">
+          <Calendar className="h-3.5 w-3.5" />
+          Estimated completion: {new Date(quote.deadline).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
+        </div>
+      )}
       <div className="bg-[#1E7A34]/5 border border-[#1E7A34]/20 rounded-xl p-4 mb-4 flex items-center justify-between">
         <span className="text-[14px] font-semibold">Total</span>
         <span className="text-[22px] font-bold text-[#1E7A34]">
@@ -434,18 +462,25 @@ function CustomerProfileView() {
   const [sm, setSm] = useState(''); const [em, setEm] = useState('');
   const [fd, setFd] = useState({ fullName: '', email: '', phone: '', state: '', city: '' });
   const { states: NIGERIAN_STATES, getLgas } = useLocations();
+  const { user } = useAuth();
 
+  // Source of truth is the authenticated user record (fetched via
+  // /auth/verify), not the JWT payload - the token only carries
+  // id/email/accountType, never fullName/phone/state/city.
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      try {
-        const p = JSON.parse(atob(token.split('.')[1]));
-        setFd({ fullName: p.fullName || '', email: p.email || '', phone: p.phone || '', state: p.state || '', city: p.city || '' });
-      } catch(e) {}
+    if (user) {
+      setFd({
+        fullName: user.fullName || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        state: user.state || '',
+        city: user.city || '',
+      });
     }
-  }, []);
+  }, [user]);
 
   const citiesForState = getLgas(fd.state);
+  const { updateUser } = useAuth();
 
   const handleSave = async () => {
     setSaving(true); setSm(''); setEm('');
@@ -453,6 +488,7 @@ function CustomerProfileView() {
       const token = localStorage.getItem('authToken'); const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
       const res = await fetch(`${API_URL}/auth/update-profile`, { method:'PUT', headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`}, body:JSON.stringify(fd) });
       const data = await res.json(); if (!res.ok) throw new Error(data.message);
+      updateUser?.(fd);
       setSm('Profile updated!'); setEditing(false); setTimeout(()=>setSm(''),3000);
     } catch(e) { setEm(e.message); setTimeout(()=>setEm(''),5000); }
     finally { setSaving(false); }
@@ -515,6 +551,8 @@ function MessagesTab({
   const [contactUnlocked, setContactUnlocked] = useState(false);
   const [providerTyping, setProviderTyping] = useState(false);
   const [seenByProvider, setSeenByProvider] = useState(false);
+  const [bookingStatus, setBookingStatus] = useState("none");
+  const [jobDates, setJobDates] = useState(null);
   const { user } = useAuth();
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -596,6 +634,8 @@ function MessagesTab({
         });
         setChatMessages(processed);
         setContactUnlocked(!!data.data.contactUnlocked);
+        setBookingStatus(data.data.bookingStatus || "none");
+        setJobDates(data.data.job || null);
         socket?.emit("messages:read", { conversationId });
       }
     } catch (err) {
@@ -801,6 +841,24 @@ function MessagesTab({
                 contactUnlocked={contactUnlocked}
               />
             </div>
+            {jobDates?.deadline && bookingStatus !== "none" && bookingStatus !== "quote_sent" && (
+              <div className="px-3 md:px-5 py-1.5 md:py-2 bg-white border-b flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] md:text-[11px] text-[#55605A] flex-shrink-0">
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="h-3 md:h-3.5 w-3 md:w-3.5 text-[#9A9488]" />
+                  Target completion: {new Date(jobDates.deadline).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
+                </span>
+                {bookingStatus === "in_progress" && (
+                  <span className="flex items-center gap-1 text-[#F0821E] font-medium">
+                    <PlayCircle className="h-3 md:h-3.5 w-3 md:w-3.5" /> In progress
+                  </span>
+                )}
+                {bookingStatus === "completed" && (
+                  <span className="flex items-center gap-1 text-[#1E7A34] font-medium">
+                    <CheckCircle2 className="h-3 md:h-3.5 w-3 md:w-3.5" /> Completed
+                  </span>
+                )}
+              </div>
+            )}
             <div className="px-3 md:px-5 py-1.5 md:py-2 bg-[#FFF8F0] border-b flex items-center gap-2 text-[10px] md:text-[11px] text-[#B85E10] flex-shrink-0">
               <Shield className="h-3 md:h-3.5 w-3 md:w-3.5 flex-shrink-0" />
               <span>
@@ -828,7 +886,9 @@ function MessagesTab({
                     msg.messageType === "quote" ||
                     msg.messageType === "payment_requested" ||
                     msg.messageType === "payment_confirmed" ||
-                    msg.messageType === "quote_rejected"
+                    msg.messageType === "quote_rejected" ||
+                    msg.messageType === "job_started" ||
+                    msg.messageType === "job_completed"
                   ) {
                     return (
                       <div
@@ -957,176 +1017,6 @@ function MessagesTab({
   );
 }
 
-// ========== SUPPORT TAB ==========
-function SupportTab() {
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      sender: "admin",
-      text: "Welcome to support! How can we help you today?",
-      time: new Date().toISOString(),
-    },
-  ]);
-  const [messageText, setMessageText] = useState("");
-  const [sending, setSending] = useState(false);
-  const [subject, setSubject] = useState("");
-  const [reportType, setReportType] = useState("general");
-  const messagesEndRef = useRef(null);
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const handleSend = async () => {
-    if (!messageText.trim()) return;
-    const token = localStorage.getItem("authToken");
-    const API_URL = import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
-    setSending(true);
-    try {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now(),
-          sender: "user",
-          text: messageText,
-          time: new Date().toISOString(),
-        },
-      ]);
-      setMessageText("");
-      await fetch(`${API_URL}/customer/report`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          subject: subject || "Support request",
-          message: messageText,
-          type: reportType,
-        }),
-      });
-      setTimeout(
-        () =>
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: Date.now() + 1,
-              sender: "admin",
-              text: "Thank you. Our team will review this and respond shortly.",
-              time: new Date().toISOString(),
-            },
-          ]),
-        1500,
-      );
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <div
-      className="flex flex-col bg-white rounded-xl border border-[#E2E0D9] overflow-hidden"
-      style={{ height: "calc(100vh - 120px)" }}
-    >
-      <div className="flex items-center justify-between px-5 py-4 bg-white border-b flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-[#F0821E]/10 flex items-center justify-center">
-            <Flag className="h-5 w-5 text-[#F0821E]" />
-          </div>
-          <div>
-            <p className="text-[14px] font-semibold">Support & Complaints</p>
-            <p className="text-[11px] text-[#9A9488]">
-              Report issues or ask questions
-            </p>
-          </div>
-        </div>
-      </div>
-      <div className="px-5 py-3 bg-[#FAFAF8] border-b flex flex-wrap gap-3 flex-shrink-0">
-        <select
-          value={reportType}
-          onChange={(e) => setReportType(e.target.value)}
-          className="rounded-lg border px-3 py-2 text-[12px] bg-white"
-        >
-          <option value="general">General inquiry</option>
-          <option value="complaint">Report complaint</option>
-          <option value="bug">Report bug</option>
-          <option value="suggestion">Suggestion</option>
-          <option value="other">Other</option>
-        </select>
-        <input
-          type="text"
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          placeholder="Brief subject (optional)"
-          className="flex-1 rounded-lg border px-3 py-2 text-[12px] bg-white min-w-[150px]"
-        />
-      </div>
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 bg-[#FAFAF8]">
-        {messages.map((msg) => {
-          const isAdmin = msg.sender === "admin";
-          return (
-            <div
-              key={msg.id}
-              className={`flex ${isAdmin ? "justify-start" : "justify-end"}`}
-            >
-              <div
-                className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${isAdmin ? "bg-white border rounded-bl-md shadow-sm" : "bg-[#1E7A34] text-white rounded-br-md"}`}
-              >
-                {isAdmin && (
-                  <p className="text-[11px] font-semibold text-[#F0821E] mb-1">
-                    Support Team
-                  </p>
-                )}
-                <p className="text-[13px]">{msg.text}</p>
-                <p
-                  className={`text-[10px] mt-1 ${isAdmin ? "text-[#9A9488]" : "text-white/70"}`}
-                >
-                  {formatNigerianTime(msg.time)}
-                </p>
-              </div>
-            </div>
-          );
-        })}
-        <div ref={messagesEndRef} />
-      </div>
-      <div className="px-5 py-2 bg-[#FFF8F0] border-t flex items-center gap-2 text-[11px] text-[#B85E10] flex-shrink-0">
-        <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
-        <span>Reports reviewed by our team.</span>
-      </div>
-      <div className="p-4 bg-white border-t flex-shrink-0">
-        <div className="flex items-end gap-3">
-          <textarea
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder="Describe your issue..."
-            rows={1}
-            className="flex-1 rounded-xl border px-4 py-3 text-[14px] focus:outline-none focus:border-[#1E7A34] resize-none bg-[#FAFAF8]"
-            style={{ minHeight: "44px", maxHeight: "100px" }}
-            onInput={(e) => {
-              e.target.style.height = "auto";
-              e.target.style.height =
-                Math.min(e.target.scrollHeight, 100) + "px";
-            }}
-          />
-          <button
-            onClick={handleSend}
-            disabled={!messageText.trim() || sending}
-            className="rounded-xl bg-[#F0821E] p-3 text-white hover:bg-[#D5720F] disabled:opacity-40"
-          >
-            <Send className="h-5 w-5" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ========== MAIN DASHBOARD ==========
 export default function Dashboard({
@@ -1355,7 +1245,7 @@ export default function Dashboard({
               socketConnected={socketConnected}
             />
           ) : activeView === "support" ? (
-            <SupportTab />
+            <SupportChat />
           ) : activeView === "notifications" ? (
             <div className="space-y-2 md:space-y-3">
               {(notifications || []).length === 0 ? (
@@ -1610,9 +1500,13 @@ export default function Dashboard({
                         ))}
                       </div>
                     ) : !conversations?.length ? (
-                      <EmptyState icon={Inbox} title="No conversations yet" />
+                      <EmptyState
+                        icon={Inbox}
+                        title="No conversations yet"
+                        hint="Message a provider to start one."
+                      />
                     ) : (
-                      <div className="divide-y divide-[#E2E0D9] rounded-lg border bg-white">
+                      <div className="divide-y divide-[#E2E0D9] rounded-lg border bg-white overflow-hidden">
                         {conversations.slice(0, 3).map((c) => (
                           <button
                             key={c.id}
@@ -1620,25 +1514,42 @@ export default function Dashboard({
                               setSelectedChat(c);
                               setActiveView("messages");
                             }}
-                            className="flex w-full items-center gap-3 px-3 md:px-4 py-2 md:py-3 hover:bg-[#F7F6F2]"
+                            className="flex w-full items-center gap-3 px-3 md:px-4 py-2.5 md:py-3 hover:bg-[#F7F6F2] transition-colors text-left"
                           >
-                            <div className="flex h-8 w-8 md:h-9 md:w-9 items-center justify-center rounded-full bg-[#EFEDE6] text-[11px] md:text-[12px] font-semibold">
+                            <div
+                              className={`flex h-9 w-9 md:h-10 md:w-10 flex-shrink-0 items-center justify-center rounded-full text-[11px] md:text-[12px] font-semibold ${c.unread ? "bg-[#1E7A34] text-white" : "bg-[#EFEDE6] text-[#55605A]"}`}
+                            >
                               {c.name
                                 .split(" ")
                                 .map((n) => n[0])
-                                .join("")}
+                                .join("")
+                                .slice(0, 2)}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-[12px] md:text-[13px] font-semibold">
-                                {c.name}
-                                <span className="ml-1.5 text-[#9A9488]">
-                                  · {c.trade}
-                                </span>
-                              </p>
-                              <p className="truncate text-[11px] md:text-[12px]">
-                                {c.preview}
+                              <div className="flex items-center justify-between gap-2">
+                                <p
+                                  className={`truncate text-[12px] md:text-[13px] ${c.unread ? "font-semibold text-[#1E2420]" : "font-medium text-[#55605A]"}`}
+                                >
+                                  {c.name}
+                                  <span className="ml-1.5 font-normal text-[#9A9488]">
+                                    · {c.trade}
+                                  </span>
+                                </p>
+                                {c.time && (
+                                  <span className="flex-shrink-0 text-[10px] md:text-[11px] text-[#9A9488]">
+                                    {formatNigerianDate(c.time)}
+                                  </span>
+                                )}
+                              </div>
+                              <p
+                                className={`truncate text-[11px] md:text-[12px] ${c.unread ? "text-[#1E2420]" : "text-[#9A9488]"}`}
+                              >
+                                {c.preview || "No messages yet"}
                               </p>
                             </div>
+                            {c.unread && (
+                              <span className="h-2 w-2 flex-shrink-0 rounded-full bg-[#F0821E]" />
+                            )}
                           </button>
                         ))}
                       </div>

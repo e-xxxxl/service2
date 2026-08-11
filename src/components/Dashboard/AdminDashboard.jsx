@@ -6,7 +6,7 @@ import {
   Eye, Check, ChevronRight, RefreshCw, Mail, Phone, MapPin,
   Star, Image, FileText, Activity, MessageCircle, Menu,
   ChevronLeft, UserPlus, Settings2, Download, Calculator,
-  CreditCard, Edit3, Save
+  CreditCard, Edit3, Save, Send
 } from "lucide-react";
 import logo from "../../assets/dashlogo.png";
 
@@ -32,7 +32,13 @@ export default function AdminDashboard() {
   const [quotes, setQuotes] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [activityData, setActivityData] = useState([]);
-  const [reports, setReports] = useState([]);
+  const [threads, setThreads] = useState([]);
+  const [selectedThread, setSelectedThread] = useState(null);
+  const [threadFilter, setThreadFilter] = useState("open");
+  const [threadReply, setThreadReply] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+  const [ongoingJobs, setOngoingJobs] = useState([]);
+  const [showJobsModal, setShowJobsModal] = useState(false);
   const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -89,9 +95,13 @@ export default function AdminDashboard() {
     if (activeView === "quotes") fetchQuotes();
     if (activeView === "contacts") fetchContacts();
     if (activeView === "activity") fetchActivity();
-    if (activeView === "reports") fetchReports();
+    if (activeView === "reports") fetchThreads();
     if (activeView === "admins") fetchAdmins();
   }, [activeView, page, searchTerm, filterStatus]);
+
+  useEffect(() => {
+    if (activeView === "reports") fetchThreads();
+  }, [threadFilter]);
 
   useEffect(() => { setSidebarOpen(false); }, [activeView]);
 
@@ -109,6 +119,19 @@ export default function AdminDashboard() {
       showMessage(setError, e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOngoingJobs = async () => {
+    try {
+      const r = await fetch(`${API_URL}/admin/jobs/ongoing`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const d = await r.json();
+      if (d.success) setOngoingJobs(d.data);
+      else showMessage(setError, d.message || "Failed to load ongoing jobs");
+    } catch (e) {
+      showMessage(setError, "We couldn't connect to the server. Please try again.");
     }
   };
 
@@ -197,18 +220,73 @@ export default function AdminDashboard() {
     }
   };
 
-  const fetchReports = async () => {
+  const fetchThreads = async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${API_URL}/admin/reports`, {
+      const r = await fetch(`${API_URL}/admin/support/threads?status=${threadFilter === "all" ? "" : threadFilter}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const d = await r.json();
-      if (d.success) setReports(d.data);
+      if (d.success) setThreads(d.data);
+      else showMessage(setError, d.message || "Failed to load conversations");
     } catch (e) {
-      showMessage(setError, e.message);
+      showMessage(setError, "We couldn't connect to the server. Please check your connection and try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openThread = async (id) => {
+    try {
+      const r = await fetch(`${API_URL}/admin/support/threads/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const d = await r.json();
+      if (d.success) {
+        setSelectedThread(d.data);
+        setThreads((prev) => prev.map((t) => (t._id === id ? { ...t, unreadByAdmin: false } : t)));
+      } else {
+        showMessage(setError, d.message || "Failed to open conversation");
+      }
+    } catch (e) {
+      showMessage(setError, "We couldn't connect to the server. Please try again.");
+    }
+  };
+
+  const sendThreadReply = async () => {
+    if (!threadReply.trim() || !selectedThread) return;
+    setSendingReply(true);
+    try {
+      const r = await fetch(`${API_URL}/admin/support/threads/${selectedThread._id}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ text: threadReply })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message);
+      setSelectedThread(d.data);
+      setThreadReply("");
+      fetchThreads();
+    } catch (e) {
+      showMessage(setError, e.message || "Failed to send reply");
+    } finally {
+      setSendingReply(false);
+    }
+  };
+
+  const resolveThread = async (id) => {
+    try {
+      const r = await fetch(`${API_URL}/admin/support/threads/${id}/resolve`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message);
+      showMessage(setSuccess, "Conversation marked resolved");
+      setSelectedThread(null);
+      fetchThreads();
+    } catch (e) {
+      showMessage(setError, e.message || "Failed to resolve conversation");
     }
   };
 
@@ -427,18 +505,6 @@ const rejectProvider = async () => {
     }
   };
 
-  const resolveReport = async (id) => {
-    try {
-      await fetch(`${API_URL}/admin/reports/${id}/resolve`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      showMessage(setSuccess, "Resolved");
-      fetchReports();
-    } catch (e) {
-      showMessage(setError, e.message);
-    }
-  };
 
   const createAdmin = async () => {
     try {
@@ -723,6 +789,25 @@ const rejectProvider = async () => {
           {/* ==================== DASHBOARD VIEW ==================== */}
           {activeView === "dashboard" && (
             <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-6 mb-4 md:mb-6">
+                <div className="rounded-xl border border-[#1E7A34]/20 bg-[#1E7A34]/5 p-4 md:p-6">
+                  <CreditCard className="h-5 w-5 md:h-6 md:w-6 text-[#1E7A34] mb-2 md:mb-3" />
+                  <p className="text-[22px] md:text-[28px] font-bold text-[#1E7A34]">
+                    ₦{(dashboardData?.stats?.todayRevenue || 0).toLocaleString()}
+                  </p>
+                  <p className="text-[11px] md:text-[13px] text-[#55605A] mt-1">
+                    Made today · {dashboardData?.stats?.todayPaymentsCount || 0} payment{dashboardData?.stats?.todayPaymentsCount === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => { fetchOngoingJobs(); setShowJobsModal(true); }}
+                  className="text-left rounded-xl border border-[#E2E0D9] bg-white p-4 md:p-6 hover:bg-[#F7F6F2] transition-colors"
+                >
+                  <Activity className="h-5 w-5 md:h-6 md:w-6 text-[#F0821E] mb-2 md:mb-3" />
+                  <p className="text-[22px] md:text-[28px] font-bold">{dashboardData?.stats?.ongoingJobsCount || 0}</p>
+                  <p className="text-[11px] md:text-[13px] text-[#55605A] mt-1">Ongoing jobs · tap to view</p>
+                </button>
+              </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6 mb-6 md:mb-8">
                 <StatCard icon={Users} label="Total Users" value={dashboardData?.stats?.totalUsers || 0} color="blue" />
                 <StatCard icon={Users} label="Customers" value={dashboardData?.stats?.totalCustomers || 0} color="green" />
@@ -952,7 +1037,7 @@ const rejectProvider = async () => {
                             <button onClick={() => approveProvider(selectedProvider._id)} className="rounded-lg bg-[#1E7A34] px-4 py-2 text-[12px] font-semibold text-white flex items-center gap-1">
                               <Check className="h-4 w-4" /> Approve
                             </button>
-                           // In the Provider detail view, update the reject button onClick:
+           
 <button 
   onClick={() => {
     // ✅ Store the ID consistently
@@ -1265,42 +1350,139 @@ const rejectProvider = async () => {
 
           {/* ==================== REPORTS VIEW ==================== */}
           {activeView === "reports" && (
-            <div>
-              <h2 className="text-[18px] font-semibold mb-6">Reports & Complaints</h2>
-              <div className="space-y-3">
-                {loading ? (
-                  <p className="text-center py-12">Loading...</p>
-                ) : reports.length === 0 ? (
-                  <p className="text-center py-12 text-[#9A9488]">No reports</p>
-                ) : (
-                  reports.map((r) => (
-                    <div key={r._id} className="bg-white rounded-xl border p-5">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-[14px] font-semibold">{r.text}</p>
-                          <p className="text-[12px] text-[#9A9488] mt-1">
-                            From: {r.user?.fullName} ({r.user?.email})
-                          </p>
-                          <p className="text-[11px] text-[#9A9488]">
-                            {new Date(r.createdAt).toLocaleString()}
-                          </p>
-                          {r.metadata?.fullMessage && (
-                            <p className="text-[12px] text-[#55605A] mt-2 bg-[#F7F6F2] p-3 rounded-lg">
-                              "{r.metadata.fullMessage}"
-                            </p>
-                          )}
+            <div className="flex bg-white rounded-xl border border-[#E2E0D9] overflow-hidden" style={{ height: "calc(100vh - 140px)" }}>
+              <div className={`${selectedThread ? "hidden" : "flex"} md:flex w-full md:w-[340px] border-r border-[#E2E0D9] flex-col flex-shrink-0`}>
+                <div className="p-4 border-b border-[#E2E0D9]">
+                  <h2 className="text-[16px] font-semibold mb-3">Reports & Complaints</h2>
+                  <div className="flex gap-2">
+                    {["open", "resolved", "all"].map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setThreadFilter(f)}
+                        className={`px-3 py-1.5 rounded-lg text-[12px] font-medium capitalize ${threadFilter === f ? "bg-[#1E7A34] text-white" : "bg-[#F7F6F2] text-[#55605A]"}`}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  {loading ? (
+                    <p className="text-center py-12 text-[13px] text-[#9A9488]">Loading...</p>
+                  ) : threads.length === 0 ? (
+                    <div className="text-center py-12">
+                      <MessageCircle className="h-8 w-8 text-[#D8D5CB] mx-auto mb-3" />
+                      <p className="text-[13px] text-[#9A9488]">No {threadFilter !== "all" ? threadFilter : ""} conversations</p>
+                    </div>
+                  ) : (
+                    threads.map((t) => (
+                      <button
+                        key={t._id}
+                        onClick={() => openThread(t._id)}
+                        className={`w-full flex items-start gap-3 p-4 text-left hover:bg-[#F7F6F2] border-b border-[#E2E0D9] ${selectedThread?._id === t._id ? "bg-[#F7F6F2]" : ""}`}
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1E7A34] text-[12px] font-semibold text-white">
+                          {(t.user?.fullName || "?")[0]}
                         </div>
-                        {r.kind === "report" && (
-                          <button
-                            onClick={() => resolveReport(r._id)}
-                            className="px-3 py-1.5 rounded-lg bg-[#1E7A34] text-white text-[12px] font-semibold hover:bg-[#166B2C] ml-4 flex-shrink-0"
-                          >
-                            Resolve
-                          </button>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="truncate text-[13px] font-semibold">{t.user?.fullName || "Unknown"}</p>
+                            <span className="text-[10px] text-[#9A9488] flex-shrink-0">
+                              {new Date(t.lastMessageAt).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}
+                            </span>
+                          </div>
+                          <p className="truncate text-[11px] text-[#9A9488] capitalize">{t.userRole} · {t.type}</p>
+                          <p className="truncate text-[12px] mt-0.5">{t.messages?.[t.messages.length - 1]?.text}</p>
+                        </div>
+                        {t.unreadByAdmin && (
+                          <span className="h-2 w-2 rounded-full bg-[#F0821E] mt-1.5 flex-shrink-0" />
                         )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className={`${!selectedThread ? "hidden" : "flex"} md:flex flex-1 flex-col bg-[#FAFAF8] min-w-0`}>
+                {selectedThread ? (
+                  <>
+                    <div className="flex items-center justify-between px-4 md:px-5 py-3 border-b border-[#E2E0D9] bg-white flex-shrink-0">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <button
+                          onClick={() => setSelectedThread(null)}
+                          className="md:hidden text-[#55605A] p-1"
+                          aria-label="Back to list"
+                        >
+                          <ChevronLeft className="h-5 w-5" />
+                        </button>
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-semibold truncate">{selectedThread.user?.fullName}</p>
+                          <p className="text-[11px] text-[#9A9488] truncate">{selectedThread.user?.email} · {selectedThread.userRole}</p>
+                        </div>
+                      </div>
+                      {selectedThread.status === "open" && (
+                        <button
+                          onClick={() => resolveThread(selectedThread._id)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1E7A34]/10 text-[#1E7A34] text-[12px] font-semibold hover:bg-[#1E7A34]/20 flex-shrink-0"
+                        >
+                          <Check className="h-3.5 w-3.5" /> Resolve
+                        </button>
+                      )}
+                      {selectedThread.status === "resolved" && (
+                        <span className="text-[12px] font-semibold text-[#9A9488]">Resolved</span>
+                      )}
+                    </div>
+                    <div className="flex-1 overflow-y-auto px-4 md:px-5 py-4 space-y-3">
+                      {(selectedThread.messages || []).map((msg, i) => {
+                        const isAdmin = msg.sender === "admin";
+                        return (
+                          <div key={msg._id || i} className={`flex ${isAdmin ? "justify-end" : "justify-start"}`}>
+                            <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${isAdmin ? "bg-[#1E7A34] text-white rounded-br-md" : "bg-white border border-[#E2E0D9] rounded-bl-md shadow-sm"}`}>
+                              {!isAdmin && (
+                                <p className="text-[11px] font-semibold text-[#F0821E] mb-1">{msg.senderName}</p>
+                              )}
+                              <p className="text-[13px]">{msg.text}</p>
+                              <p className={`text-[10px] mt-1 ${isAdmin ? "text-white/70" : "text-[#9A9488]"}`}>
+                                {new Date(msg.createdAt).toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="p-3 md:p-4 bg-white border-t border-[#E2E0D9] flex-shrink-0">
+                      <div className="flex items-end gap-2">
+                        <textarea
+                          value={threadReply}
+                          onChange={(e) => setThreadReply(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              sendThreadReply();
+                            }
+                          }}
+                          placeholder="Type a reply..."
+                          rows={1}
+                          disabled={selectedThread.status === "resolved"}
+                          className="flex-1 rounded-xl border px-4 py-2.5 text-[13px] focus:outline-none focus:border-[#1E7A34] resize-none bg-[#FAFAF8] disabled:opacity-50"
+                        />
+                        <button
+                          onClick={sendThreadReply}
+                          disabled={!threadReply.trim() || sendingReply || selectedThread.status === "resolved"}
+                          className="rounded-xl bg-[#1E7A34] p-2.5 text-white hover:bg-[#166B2C] disabled:opacity-40"
+                        >
+                          <Send className="h-4 w-4" />
+                        </button>
                       </div>
                     </div>
-                  ))
+                  </>
+                ) : (
+                  <div className="flex-1 hidden md:flex items-center justify-center">
+                    <div className="text-center">
+                      <MessageCircle className="h-10 w-10 text-[#D8D5CB] mx-auto mb-3" />
+                      <p className="text-[14px] font-semibold">Select a conversation</p>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -1439,14 +1621,14 @@ const rejectProvider = async () => {
                     <label className="block text-[13px] font-semibold mb-2">Service Type</label>
                     <input type="text" value={editForm.serviceType} onChange={(e) => setEditForm({...editForm, serviceType: e.target.value})} className="w-full rounded-lg border px-4 py-2.5 text-[14px]" />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[13px] font-semibold mb-2">City</label>
-                      <input type="text" value={editForm.city} onChange={(e) => setEditForm({...editForm, city: e.target.value})} className="w-full rounded-lg border px-4 py-2.5 text-[14px]" />
-                    </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[13px] font-semibold mb-2">State</label>
                       <input type="text" value={editForm.state} onChange={(e) => setEditForm({...editForm, state: e.target.value})} className="w-full rounded-lg border px-4 py-2.5 text-[14px]" />
+                    </div>
+                    <div>
+                      <label className="block text-[13px] font-semibold mb-2">City</label>
+                      <input type="text" value={editForm.city} onChange={(e) => setEditForm({...editForm, city: e.target.value})} className="w-full rounded-lg border px-4 py-2.5 text-[14px]" />
                     </div>
                   </div>
                   <div>
@@ -1517,6 +1699,47 @@ const rejectProvider = async () => {
                 <div className="flex justify-between text-[13px]"><span className="text-[#9A9488]">Status</span><span className={`font-medium ${selectedUser.isActive?"text-green-600":"text-red-600"}`}>{selectedUser.isActive?"Active":"Disabled"}</span></div>
                 <div className="flex justify-between text-[13px]"><span className="text-[#9A9488]">Joined</span><span className="font-medium">{new Date(selectedUser.createdAt).toLocaleDateString()}</span></div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== ONGOING JOBS MODAL ==================== */}
+      {showJobsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white rounded-t-2xl z-10 flex items-center justify-between p-5 border-b">
+              <h3 className="text-[16px] font-semibold">Ongoing Jobs ({ongoingJobs.length})</h3>
+              <button onClick={() => setShowJobsModal(false)} className="p-1.5 rounded-lg hover:bg-[#F7F6F2]">
+                <X className="h-5 w-5 text-[#55605A]" />
+              </button>
+            </div>
+            <div className="p-5">
+              {ongoingJobs.length === 0 ? (
+                <p className="text-center py-12 text-[13px] text-[#9A9488]">No ongoing jobs right now</p>
+              ) : (
+                <div className="space-y-3">
+                  {ongoingJobs.map((j) => (
+                    <div key={j.id} className="rounded-xl border border-[#E2E0D9] p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-semibold">{j.customerName} → {j.providerName}</p>
+                          <p className="text-[11px] text-[#9A9488] mt-0.5 capitalize">{j.serviceType}</p>
+                        </div>
+                        <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${j.status === "in_progress" ? "bg-[#F0821E]/10 text-[#F0821E]" : "bg-[#1E7A34]/10 text-[#1E7A34]"}`}>
+                          {j.status === "in_progress" ? "In progress" : "Active"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mt-3 text-[12px] text-[#55605A]">
+                        <span className="font-semibold">₦{(j.amount || 0).toLocaleString()}</span>
+                        {j.deadline && (
+                          <span>Target: {new Date(j.deadline).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

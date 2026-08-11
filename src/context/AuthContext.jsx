@@ -18,53 +18,56 @@ export const AuthProvider = ({ children }) => {
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
 
-  // Check existing session
-  // context/AuthContext.jsx - Update checkAuth
-// context/AuthContext.jsx - Update checkAuth
-// context/AuthContext.jsx - Update checkAuth
-useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        // ✅ Only check regular auth token, not admin token
-        const token = localStorage.getItem('authToken');
-        if (!token) {
-          setLoading(false);
-          return;
-        }
-
-        // Skip if it's somehow an admin token (shouldn't happen with separate keys)
-        try {
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          if (payload.accountType === 'admin') {
-            setLoading(false);
-            return;
-          }
-        } catch (e) {}
-
-        const response = await fetch(`${API_URL}/auth/verify`, {
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          const userData = result.data || result.user || result;
-          setUser(userData);
-          setIsEmailVerified(userData?.isEmailVerified || false);
-        } else {
-          localStorage.removeItem('authToken');
-          setUser(null);
-        }
-      } catch (error) {
-        console.error('Auth check error:', error);
-      } finally {
+  // Re-checks the current token against /auth/verify and refreshes `user`.
+  // Exposed via context so flows that write a token outside the normal
+  // login() call (e.g. the Google OAuth redirect landing on /auth/callback)
+  // can pull the real profile in immediately instead of waiting for a full
+  // page reload to remount AuthProvider.
+  const refreshUser = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
         setLoading(false);
+        return null;
       }
-    };
 
-    checkAuth();
+      // Skip if it's somehow an admin token (shouldn't happen with separate keys)
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.accountType === 'admin') {
+          setLoading(false);
+          return null;
+        }
+      } catch (e) {}
+
+      const response = await fetch(`${API_URL}/auth/verify`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const userData = result.data || result.user || result;
+        setUser(userData);
+        setIsEmailVerified(userData?.isEmailVerified || false);
+        return userData;
+      }
+
+      localStorage.removeItem('authToken');
+      setUser(null);
+      return null;
+    } catch (error) {
+      console.error('Auth check error:', error);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshUser();
   }, [API_URL]);
 
   const login = async (credentials) => {
@@ -196,6 +199,12 @@ const verifyEmail = async (token) => {
     return result;
   };
 
+  // Merge partial fields (e.g. after a profile save) into the cached user
+  // object so the rest of the app doesn't show stale data until next reload.
+  const updateUser = (partial) => {
+    setUser((prev) => (prev ? { ...prev, ...partial } : prev));
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -208,6 +217,8 @@ const verifyEmail = async (token) => {
         resendVerification,
         forgotPassword,
         resetPassword,
+        updateUser,
+        refreshUser,
         logout,
       }}
     >
