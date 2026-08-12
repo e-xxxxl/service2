@@ -57,6 +57,7 @@ const NAV_CONFIG = [
     icon: MessageCircle,
     badgeKey: "messages",
   },
+  { id: "jobs", label: "Jobs", icon: Briefcase },
   { id: "wallet", label: "Wallet", icon: CreditCard },
   { id: "help", label: "Help", icon: HelpCircle },
   {
@@ -118,7 +119,6 @@ export default function ProviderDashboard({ onLogout }) {
     refetch,
     updateAvailability,
     updateProfile,
-    respondToJob,
   } = useProviderDashboard();
 
   const [activeView, setActiveView] = useState(
@@ -332,7 +332,6 @@ export default function ProviderDashboard({ onLogout }) {
               loading={loading}
               error={error}
               refetch={refetch}
-              onRespondToJob={respondToJob}
               onNavigate={setActiveView}
               onResubmit={handleResubmit}
               onSelectConversation={(conv) => {
@@ -351,6 +350,14 @@ export default function ProviderDashboard({ onLogout }) {
               refetch={refetch}
               socket={socket}
               socketConnected={socketConnected}
+            />
+          )}
+          {activeView === "jobs" && (
+            <ProviderJobsTab
+              onOpenConversation={(conv) => {
+                setSelectedConversation(conv);
+                setActiveView("messages");
+              }}
             />
           )}
           {activeView === "wallet" && <WalletView />}
@@ -439,7 +446,6 @@ function DashboardView({
   loading,
   error,
   refetch,
-  onRespondToJob,
   onNavigate,
   onResubmit,
   onSelectConversation,
@@ -632,7 +638,17 @@ function DashboardView({
             ) : (
               <div className="space-y-4">
                 {activeJobs.slice(0, 3).map((job) => (
-                  <JobCard key={job.id} job={job} onRespond={onRespondToJob} />
+                  <JobCard
+                    key={job.id}
+                    job={job}
+                    onView={() =>
+                      onSelectConversation?.({
+                        id: job.conversationId,
+                        customerId: job.customerId,
+                        customerName: job.customerName,
+                      })
+                    }
+                  />
                 ))}
               </div>
             )}
@@ -746,6 +762,18 @@ function ProfileView({
     };
     loadProfile();
   }, []);
+
+  const handleVerificationFileChange = (e, setter) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.type !== "image/png") {
+      setEm("Only PNG images are accepted. Please upload a .png file.");
+      setTimeout(() => setEm(""), 5000);
+      e.target.value = "";
+      return;
+    }
+    setter(file);
+  };
 
   const handleBusinessDescChange = (e) => {
     // ✅ Remove phone numbers and emails from business description
@@ -877,7 +905,7 @@ function ProfileView({
         </div>
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex flex-col md:flex-row gap-6">
         <div className="w-[200px] shrink-0 hidden md:block">
           <nav className="space-y-1 sticky top-24">
             {sections.map((s) => {
@@ -1010,10 +1038,11 @@ function ProfileView({
                       </label>
                       <input
                         type="file"
-                        accept="image/*,.pdf"
-                        onChange={(e) => setNinDoc(e.target.files[0])}
+                        accept="image/png"
+                        onChange={(e) => handleVerificationFileChange(e, setNinDoc)}
                         className="w-full rounded-lg border px-4 py-3 text-[14px]"
                       />
+                      <p className="mt-1 text-[11px] text-[#9A9488]">PNG only</p>
                     </div>
                     <div>
                       <label className="block text-[13px] font-semibold mb-2">
@@ -1021,10 +1050,11 @@ function ProfileView({
                       </label>
                       <input
                         type="file"
-                        accept="image/*"
-                        onChange={(e) => setSelfie(e.target.files[0])}
+                        accept="image/png"
+                        onChange={(e) => handleVerificationFileChange(e, setSelfie)}
                         className="w-full rounded-lg border px-4 py-3 text-[14px]"
                       />
+                      <p className="mt-1 text-[11px] text-[#9A9488]">PNG only</p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
@@ -1717,7 +1747,7 @@ function MessagesView({
                     <PlayCircle className="h-3.5 w-3.5" /> Start Job
                   </button>
                 )}
-                {bookingStatus === "in_progress" && (
+                {bookingStatus === "in_progress" && !jobDates?.completedAt && (
                   <button
                     onClick={() => handleJobAction("complete")}
                     disabled={jobActionLoading}
@@ -1725,6 +1755,11 @@ function MessagesView({
                   >
                     <CheckCircle2 className="h-3.5 w-3.5" /> Mark Complete
                   </button>
+                )}
+                {bookingStatus === "in_progress" && jobDates?.completedAt && (
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F0821E]/10 text-[#F0821E] text-[12px] font-semibold">
+                    <Clock className="h-3.5 w-3.5" /> Awaiting customer confirmation
+                  </span>
                 )}
                 {bookingStatus === "completed" && (
                   <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1E7A34]/10 text-[#1E7A34] text-[12px] font-semibold">
@@ -1749,7 +1784,7 @@ function MessagesView({
                 )}
                 {jobDates.completedAt && (
                   <span className="ml-3 text-[#9A9488]">
-                    Completed {new Date(jobDates.completedAt).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}
+                    {jobDates.customerConfirmedAt ? "Completed" : "Marked complete"} {new Date(jobDates.completedAt).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}
                   </span>
                 )}
               </div>
@@ -2038,7 +2073,7 @@ function ProviderQuoteBubble({ message }) {
           </div>
         )}
       </div>
-      {(quote?.workmanshipCost || 0) > 0 && (
+      {(quote?.workmanshipCost || 0) > 0 && COMMISSION_ENABLED && (
         <div className="mb-3 flex items-center justify-between text-[11px] text-[#9A9488] px-1">
           <span>Platform fee (15% of workmanship)</span>
           <span>&minus; ₦{Math.round((quote.workmanshipCost || 0) * 0.15).toLocaleString()}</span>
@@ -2056,6 +2091,9 @@ function ProviderQuoteBubble({ message }) {
 
 // ========== QUOTE FORM ==========
 const PLATFORM_COMMISSION_RATE = 0.15;
+// PAUSED: matches COMMISSION_ENABLED in server/controllers/paymentController.js -
+// flip both back to true/enabled together when commission is reactivated.
+const COMMISSION_ENABLED = false;
 
 function QuoteForm({ customerName, onSend, onCancel }) {
   const [fd, setFd] = useState({
@@ -2071,7 +2109,7 @@ function QuoteForm({ customerName, onSend, onCancel }) {
   const materialCost = Number(fd.materialCost) || 0;
   const otherCosts = Number(fd.otherCosts) || 0;
   const total = workmanshipCost + materialCost + otherCosts;
-  const commission = Math.round(workmanshipCost * PLATFORM_COMMISSION_RATE);
+  const commission = COMMISSION_ENABLED ? Math.round(workmanshipCost * PLATFORM_COMMISSION_RATE) : 0;
   const youReceive = total - commission;
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -2182,7 +2220,7 @@ function QuoteForm({ customerName, onSend, onCancel }) {
             ₦{total.toLocaleString()}
           </span>
         </div>
-        {workmanshipCost > 0 && (
+        {workmanshipCost > 0 && COMMISSION_ENABLED && (
           <div className="rounded-lg bg-white border border-[#E2E0D9] px-3 py-2.5 flex items-center justify-between text-[12px]">
             <span className="text-[#9A9488]">
               Platform fee ({Math.round(PLATFORM_COMMISSION_RATE * 100)}% of workmanship) &minus; ₦{commission.toLocaleString()}
@@ -2471,43 +2509,317 @@ function MessagePreview({ message, onClick }) {
     </button>
   );
 }
-function JobCard({ job, onRespond }) {
+const JOB_STATUS_LABEL = {
+  active: "Active",
+  in_progress: "In progress",
+  completed: "Completed",
+  cancelled: "Cancelled",
+  disputed: "Disputed",
+};
+const JOB_STATUS_TONE = {
+  completed: "bg-[#1E7A34]/10 text-[#1E7A34]",
+  cancelled: "bg-[#EFEDE6] text-[#55605A]",
+  disputed: "bg-red-50 text-red-600",
+};
+
+function JobCard({ job, onView }) {
+  const statusLabel = job.awaitingConfirmation
+    ? "Awaiting confirmation"
+    : JOB_STATUS_LABEL[job.bookingStatus] || job.bookingStatus;
+  const statusTone = job.awaitingConfirmation
+    ? "bg-[#F0821E]/10 text-[#F0821E]"
+    : JOB_STATUS_TONE[job.bookingStatus] || "bg-[#1E7A34]/10 text-[#1E7A34]";
+
   return (
     <div className="rounded-xl border-l-4 bg-white border p-5">
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h4 className="text-[15px] font-semibold">{job.title}</h4>
-          <p className="text-[13px] mt-1">{job.description}</p>
+          <h4 className="text-[15px] font-semibold">{job.customerName}</h4>
+          <p className="text-[13px] mt-1">{job.serviceType}</p>
         </div>
-        <span className="px-3 py-1 rounded-full text-[11px] font-semibold uppercase bg-[#1E7A34]/10 text-[#1E7A34]">
-          {job.status}
+        <span className={`px-3 py-1 rounded-full text-[11px] font-semibold uppercase ${statusTone}`}>
+          {statusLabel}
         </span>
       </div>
       <div className="flex items-center gap-6 text-[12px] text-[#9A9488] mb-4">
-        <span className="flex items-center gap-1.5">
-          <MapPin className="h-3.5 w-3.5" />
-          {job.location}
-        </span>
+        {job.amount > 0 && (
+          <span className="flex items-center gap-1.5">
+            ₦{job.amount.toLocaleString()}
+          </span>
+        )}
+        {job.deadline && (
+          <span className="flex items-center gap-1.5">
+            <Calendar className="h-3.5 w-3.5" />
+            Due {new Date(job.deadline).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}
+          </span>
+        )}
       </div>
-      {job.status === "new" && (
-        <div className="flex gap-3">
+      <button
+        onClick={onView}
+        className="w-full rounded-lg border px-4 py-2.5 text-[13px] font-semibold hover:bg-[#F7F6F2]"
+      >
+        View conversation
+      </button>
+    </div>
+  );
+}
+
+const JOB_FILTER_TABS = [
+  { key: "all", label: "All" },
+  { key: "active", label: "Active" },
+  { key: "completed", label: "Completed" },
+];
+
+function MyPaidJobsPanel({ onOpenConversation }) {
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState("all");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("authToken");
+        const API_URL =
+          import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+        const res = await fetch(`${API_URL}/provider/jobs`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+        if (!cancelled) setJobs(data.data || []);
+      } catch (err) {
+        if (!cancelled) setError(err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filteredJobs = jobs.filter((job) => {
+    if (filter === "active") return ["active", "in_progress"].includes(job.bookingStatus);
+    if (filter === "completed") return job.bookingStatus === "completed";
+    return true;
+  });
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center gap-1 rounded-lg bg-[#F7F6F2] p-1 w-fit">
+        {JOB_FILTER_TABS.map((tab) => (
           <button
-            onClick={() => onRespond?.(job.id, "accept")}
-            className="flex-1 rounded-lg bg-[#1E7A34] px-4 py-2.5 text-[13px] font-semibold text-white"
+            key={tab.key}
+            onClick={() => setFilter(tab.key)}
+            className={`px-3 py-1.5 rounded-md text-[12px] font-semibold ${filter === tab.key ? "bg-white shadow-sm" : "text-[#55605A]"}`}
           >
-            Accept
+            {tab.label}
           </button>
-          <button
-            onClick={() => onRespond?.(job.id, "decline")}
-            className="rounded-lg border px-4 py-2.5 text-[13px] font-semibold"
-          >
-            Decline
-          </button>
+        ))}
+      </div>
+      {loading ? (
+        <div className="space-y-4">
+          {[0, 1, 2].map((i) => (
+            <SkeletonBlock key={i} className="h-[120px]" />
+          ))}
+        </div>
+      ) : error ? (
+        <p className="text-[13px] text-red-600">{error}</p>
+      ) : filteredJobs.length === 0 ? (
+        <EmptyState icon={Briefcase} title="No jobs here yet" />
+      ) : (
+        <div className="space-y-4">
+          {filteredJobs.map((job) => (
+            <JobCard
+              key={job.id}
+              job={job}
+              onView={() =>
+                onOpenConversation?.({
+                  id: job.conversationId,
+                  customerId: job.customerId,
+                  customerName: job.customerName,
+                })
+              }
+            />
+          ))}
         </div>
       )}
     </div>
   );
 }
+
+function JobBoardPanel() {
+  const [subView, setSubView] = useState("browse"); // browse | applied
+  const [postings, setPostings] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [applyingId, setApplyingId] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("authToken");
+      const API_URL =
+        import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+      const path = subView === "browse" ? "/provider/job-postings" : "/provider/job-postings/applied";
+      const res = await fetch(`${API_URL}${path}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      if (subView === "browse") setPostings(data.data || []);
+      else setApplications(data.data || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, [subView]);
+
+  const handleApply = async (postingId) => {
+    const message = window.prompt("Add a message to your application (optional)") || "";
+    setApplyingId(postingId);
+    try {
+      const token = localStorage.getItem("authToken");
+      const API_URL =
+        import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+      const res = await fetch(`${API_URL}/provider/job-postings/${postingId}/apply`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setApplyingId(null);
+    }
+  };
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center gap-1 rounded-lg bg-[#F7F6F2] p-1 w-fit">
+        <button
+          onClick={() => setSubView("browse")}
+          className={`px-3 py-1.5 rounded-md text-[12px] font-semibold ${subView === "browse" ? "bg-white shadow-sm" : "text-[#55605A]"}`}
+        >
+          Browse
+        </button>
+        <button
+          onClick={() => setSubView("applied")}
+          className={`px-3 py-1.5 rounded-md text-[12px] font-semibold ${subView === "applied" ? "bg-white shadow-sm" : "text-[#55605A]"}`}
+        >
+          My Applications
+        </button>
+      </div>
+      {loading ? (
+        <div className="space-y-4">
+          {[0, 1, 2].map((i) => (
+            <SkeletonBlock key={i} className="h-[110px] rounded-xl" />
+          ))}
+        </div>
+      ) : error ? (
+        <p className="text-[13px] text-red-600">{error}</p>
+      ) : subView === "browse" ? (
+        postings.length === 0 ? (
+          <EmptyState icon={Briefcase} title="No open jobs right now" />
+        ) : (
+          <div className="space-y-4">
+            {postings.map((p) => (
+              <div key={p.id} className="rounded-xl border bg-white p-4 md:p-5">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <h4 className="text-[14px] font-semibold">{p.title}</h4>
+                  {p.budget > 0 && (
+                    <span className="text-[13px] font-semibold text-[#1E7A34] flex-shrink-0">
+                      ₦{p.budget.toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[13px] text-[#55605A] mb-2">{p.description}</p>
+                <p className="text-[11px] text-[#9A9488] mb-3">
+                  {p.postedBy}
+                  {p.category ? ` · ${p.category}` : ""}
+                  {p.city || p.state ? ` · ${[p.city, p.state].filter(Boolean).join(", ")}` : ""}
+                </p>
+                <button
+                  onClick={() => handleApply(p.id)}
+                  disabled={p.alreadyApplied || applyingId === p.id}
+                  className="w-full rounded-lg bg-[#1E7A34] px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-50"
+                >
+                  {p.alreadyApplied ? "Applied" : applyingId === p.id ? "Applying..." : "I'm interested"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )
+      ) : applications.length === 0 ? (
+        <EmptyState icon={Briefcase} title="You haven't applied to any jobs yet" />
+      ) : (
+        <div className="space-y-4">
+          {applications.map((a) => (
+            <div key={a.id} className="rounded-xl border bg-white p-4 md:p-5">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <h4 className="text-[14px] font-semibold">{a.title}</h4>
+                <span
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase ${a.postingStatus === "open" ? "bg-[#1E7A34]/10 text-[#1E7A34]" : "bg-[#EFEDE6] text-[#55605A]"}`}
+                >
+                  {a.postingStatus}
+                </span>
+              </div>
+              <p className="text-[13px] text-[#55605A]">{a.description}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProviderJobsTab({ onOpenConversation }) {
+  const [subView, setSubView] = useState("jobs"); // jobs | board
+
+  return (
+    <div className="px-5 py-6 md:px-8 md:py-8">
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-[18px] font-semibold">Jobs</h2>
+        <div className="flex items-center gap-1 rounded-lg bg-[#F7F6F2] p-1">
+          <button
+            onClick={() => setSubView("jobs")}
+            className={`px-3 py-1.5 rounded-md text-[12px] font-semibold ${subView === "jobs" ? "bg-white shadow-sm" : "text-[#55605A]"}`}
+          >
+            My Jobs
+          </button>
+          <button
+            onClick={() => setSubView("board")}
+            className={`px-3 py-1.5 rounded-md text-[12px] font-semibold ${subView === "board" ? "bg-white shadow-sm" : "text-[#55605A]"}`}
+          >
+            Job Board
+          </button>
+        </div>
+      </div>
+      {subView === "jobs" ? (
+        <MyPaidJobsPanel onOpenConversation={onOpenConversation} />
+      ) : (
+        <JobBoardPanel />
+      )}
+    </div>
+  );
+}
+
 function SkeletonBlock({ className = "" }) {
   return (
     <div className={`animate-pulse rounded-lg bg-[#EAE8E1] ${className}`} />

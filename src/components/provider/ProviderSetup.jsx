@@ -44,6 +44,13 @@ export default function ProviderSetup() {
     const file = e.target.files[0];
     if (!file) return;
 
+    if (file.type !== 'image/png') {
+      setError('Only PNG images are accepted. Please upload a .png file.');
+      e.target.value = '';
+      return;
+    }
+    setError('');
+
     if (type === 'nin') {
       setNinDocument(file);
       setNinPreview(URL.createObjectURL(file));
@@ -211,11 +218,11 @@ export default function ProviderSetup() {
                   <div>
                     <Upload className="h-8 w-8 text-[#9A9488] mx-auto mb-2" />
                     <p className="text-[13px] text-[#55605A]">Click to upload NIN document</p>
-                    <p className="text-[11px] text-[#9A9488]">JPG, PNG or PDF (max 5MB)</p>
+                    <p className="text-[11px] text-[#9A9488]">PNG only (max 5MB)</p>
                   </div>
                 )}
               </div>
-              <input id="ninUpload" type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => handleFileUpload(e, 'nin')} />
+              <input id="ninUpload" type="file" accept="image/png" className="hidden" onChange={(e) => handleFileUpload(e, 'nin')} />
             </div>
 
             <div>
@@ -228,11 +235,11 @@ export default function ProviderSetup() {
                   <div>
                     <Camera className="h-8 w-8 text-[#9A9488] mx-auto mb-2" />
                     <p className="text-[13px] text-[#55605A]">Click to upload your photo</p>
-                    <p className="text-[11px] text-[#9A9488]">Clear face photo (JPG, PNG)</p>
+                    <p className="text-[11px] text-[#9A9488]">Clear face photo, PNG only</p>
                   </div>
                 )}
               </div>
-              <input id="selfieUpload" type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'selfie')} />
+              <input id="selfieUpload" type="file" accept="image/png" className="hidden" onChange={(e) => handleFileUpload(e, 'selfie')} />
             </div>
 
             <div className="flex gap-3">

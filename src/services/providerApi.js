@@ -62,13 +62,6 @@ export const api = {
       body: JSON.stringify({ isAvailable }) 
     }),
   
-  // Jobs
-  respondToJob: (jobId, response) =>
-    request(`/provider/jobs/${jobId}/respond`, {
-      method: 'POST',
-      body: JSON.stringify(response)
-    }),
-  
   // Messages
   getMessages: () => request('/provider/messages'),
   sendMessage: (customerId, text) =>

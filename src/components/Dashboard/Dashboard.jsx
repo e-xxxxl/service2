@@ -51,6 +51,7 @@ import { useAuth } from "../../context/AuthContext";
 const NAV_CONFIG = [
   { id: "dashboard", label: "Home", icon: LayoutGrid },
   { id: "messages", label: "Chats", icon: MessageCircle, badgeKey: "messages" },
+  { id: "jobs", label: "Jobs", icon: Package },
   { id: "favorites", label: "Saved", icon: Heart },
   {
     id: "notifications",
@@ -553,6 +554,7 @@ function MessagesTab({
   const [seenByProvider, setSeenByProvider] = useState(false);
   const [bookingStatus, setBookingStatus] = useState("none");
   const [jobDates, setJobDates] = useState(null);
+  const [jobActionLoading, setJobActionLoading] = useState(false);
   const { user } = useAuth();
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -640,6 +642,42 @@ function MessagesTab({
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleJobCompletionAction = async (action) => {
+    if (!selectedChat?.id || jobActionLoading) return;
+    if (action === "reject-completion") {
+      const reason = window.prompt("What went wrong? (optional)") || "";
+      if (reason === null) return;
+      await submitJobCompletionAction(action, { reason });
+      return;
+    }
+    await submitJobCompletionAction(action);
+  };
+
+  const submitJobCompletionAction = async (action, body) => {
+    setJobActionLoading(true);
+    try {
+      const token = localStorage.getItem("authToken");
+      const API_URL =
+        import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+      const res = await fetch(`${API_URL}/customer/jobs/${selectedChat.id}/${action}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(body ? { "Content-Type": "application/json" } : {}),
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      await fetchMessages(selectedChat.id);
+    } catch (err) {
+      setWarning(err.message);
+      setTimeout(() => setWarning(""), 5000);
+    } finally {
+      setJobActionLoading(false);
     }
   };
 
@@ -847,7 +885,7 @@ function MessagesTab({
                   <Calendar className="h-3 md:h-3.5 w-3 md:w-3.5 text-[#9A9488]" />
                   Target completion: {new Date(jobDates.deadline).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
                 </span>
-                {bookingStatus === "in_progress" && (
+                {bookingStatus === "in_progress" && !jobDates?.completedAt && (
                   <span className="flex items-center gap-1 text-[#F0821E] font-medium">
                     <PlayCircle className="h-3 md:h-3.5 w-3 md:w-3.5" /> In progress
                   </span>
@@ -857,6 +895,29 @@ function MessagesTab({
                     <CheckCircle2 className="h-3 md:h-3.5 w-3 md:w-3.5" /> Completed
                   </span>
                 )}
+              </div>
+            )}
+            {bookingStatus === "in_progress" && jobDates?.completedAt && (
+              <div className="px-3 md:px-5 py-2 md:py-2.5 bg-[#FFF8F0] border-b flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
+                <span className="flex items-center gap-1.5 text-[11px] md:text-[12px] text-[#B85E10] font-medium">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Provider marked this job completed
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleJobCompletionAction("confirm-completion")}
+                    disabled={jobActionLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1E7A34] text-white text-[11px] md:text-[12px] font-semibold hover:bg-[#166B2C] disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Confirm job completed
+                  </button>
+                  <button
+                    onClick={() => handleJobCompletionAction("reject-completion")}
+                    disabled={jobActionLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#D8D5CB] text-[11px] md:text-[12px] font-semibold hover:bg-white disabled:opacity-50"
+                  >
+                    <XCircle className="h-3.5 w-3.5" /> Not done yet
+                  </button>
+                </div>
               </div>
             )}
             <div className="px-3 md:px-5 py-1.5 md:py-2 bg-[#FFF8F0] border-b flex items-center gap-2 text-[10px] md:text-[11px] text-[#B85E10] flex-shrink-0">
@@ -1018,6 +1079,667 @@ function MessagesTab({
 }
 
 
+// ========== JOBS ==========
+const JOB_PROGRESS_STEPS = [
+  { key: "quote_sent", label: "Quote sent" },
+  { key: "quote_accepted", label: "Accepted" },
+  { key: "active", label: "Paid" },
+  { key: "in_progress", label: "In progress" },
+  { key: "completed", label: "Completed" },
+];
+// pending_payment sits between quote_accepted and active but isn't its own
+// visible step - it's shown as "Accepted" still in progress toward payment.
+const JOB_PROGRESS_INDEX = {
+  quote_sent: 0,
+  quote_accepted: 1,
+  pending_payment: 1,
+  active: 2,
+  in_progress: 3,
+  completed: 4,
+};
+
+function JobProgressTrail({ bookingStatus, awaitingConfirmation }) {
+  if (bookingStatus === "cancelled" || bookingStatus === "disputed") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#B85E10] bg-[#FFF8F0] px-2.5 py-1 rounded-full">
+        <XCircle className="h-3.5 w-3.5" />
+        {bookingStatus === "cancelled" ? "Cancelled" : "Disputed"}
+      </span>
+    );
+  }
+  const currentIndex = JOB_PROGRESS_INDEX[bookingStatus] ?? 0;
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {JOB_PROGRESS_STEPS.map((step, i) => {
+        const done = i <= currentIndex;
+        const isCurrent = i === currentIndex;
+        return (
+          <span
+            key={step.key}
+            className={`text-[10px] font-semibold px-2 py-1 rounded-full ${
+              isCurrent && awaitingConfirmation
+                ? "bg-[#F0821E]/15 text-[#B85E10]"
+                : done
+                  ? "bg-[#1E7A34]/10 text-[#1E7A34]"
+                  : "bg-[#EFEDE6] text-[#9A9488]"
+            }`}
+          >
+            {isCurrent && awaitingConfirmation ? "Awaiting your confirmation" : step.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function RateJobRow({ job, onRated }) {
+  const [hoverStar, setHoverStar] = useState(0);
+  const [selectedStar, setSelectedStar] = useState(0);
+  const [comment, setComment] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  if (job.myReview) {
+    return (
+      <div className="mt-3 flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <Star
+            key={n}
+            className={`h-4 w-4 ${n <= job.myReview.rating ? "fill-[#F0821E] text-[#F0821E]" : "text-[#D8D5CB]"}`}
+          />
+        ))}
+        <span className="ml-1 text-[11px] text-[#9A9488]">Your rating</span>
+      </div>
+    );
+  }
+
+  if (!showForm) {
+    return (
+      <button
+        onClick={() => setShowForm(true)}
+        className="mt-3 w-full rounded-lg border px-4 py-2 text-[12px] font-semibold hover:bg-[#F7F6F2]"
+      >
+        Rate this job
+      </button>
+    );
+  }
+
+  const handleSubmit = async () => {
+    if (!selectedStar) {
+      setError("Pick a star rating first.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("authToken");
+      const API_URL =
+        import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+      const res = await fetch(`${API_URL}/customer/jobs/${job.id}/rate`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ rating: selectedStar, comment }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      onRated?.(job.id, { rating: selectedStar, comment });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-lg border p-3 space-y-2">
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            onMouseEnter={() => setHoverStar(n)}
+            onMouseLeave={() => setHoverStar(0)}
+            onClick={() => setSelectedStar(n)}
+          >
+            <Star
+              className={`h-5 w-5 ${(hoverStar || selectedStar) >= n ? "fill-[#F0821E] text-[#F0821E]" : "text-[#D8D5CB]"}`}
+            />
+          </button>
+        ))}
+      </div>
+      <textarea
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        placeholder="Add a comment (optional)"
+        rows={2}
+        className="w-full rounded-lg border px-2.5 py-2 text-[12px]"
+      />
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          onClick={handleSubmit}
+          disabled={submitting}
+          className="flex-1 rounded-lg bg-[#1E7A34] px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-60"
+        >
+          {submitting ? "Submitting..." : "Submit rating"}
+        </button>
+        <button
+          onClick={() => setShowForm(false)}
+          className="rounded-lg border px-3 py-1.5 text-[12px] font-semibold"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MyJobsPanel({ onOpenConversation }) {
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("authToken");
+        const API_URL =
+          import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+        const res = await fetch(`${API_URL}/customer/messages`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+        if (!cancelled) {
+          setJobs((data.data || []).filter((c) => c.bookingStatus && c.bookingStatus !== "none"));
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleRated = (jobId, review) => {
+    setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, myReview: review } : j)));
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[0, 1, 2].map((i) => (
+          <SkeletonBlock key={i} className="h-[110px] rounded-xl" />
+        ))}
+      </div>
+    );
+  }
+  if (error) return <ErrorBanner message={error} />;
+  if (jobs.length === 0) {
+    return (
+      <EmptyState
+        icon={Package}
+        title="No jobs yet"
+        hint="Jobs appear here once a provider sends you a quote."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {jobs.map((job) => {
+        const awaitingConfirmation =
+          !!job.job?.completedAt && !job.job?.customerConfirmedAt;
+        return (
+          <div key={job.id} className="rounded-xl border bg-white p-4 md:p-5">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <h4 className="text-[14px] font-semibold">{job.name}</h4>
+                <p className="text-[12px] text-[#55605A] mt-0.5">
+                  {job.serviceType || job.trade}
+                </p>
+              </div>
+              {job.amount > 0 && (
+                <span className="text-[13px] font-semibold text-[#1E7A34] flex-shrink-0">
+                  ₦{job.amount.toLocaleString()}
+                </span>
+              )}
+            </div>
+            <JobProgressTrail
+              bookingStatus={job.bookingStatus}
+              awaitingConfirmation={awaitingConfirmation}
+            />
+            <button
+              onClick={() =>
+                onOpenConversation?.({
+                  id: job.id,
+                  professionalId: job.professionalId,
+                  name: job.name,
+                  trade: job.trade,
+                })
+              }
+              className="mt-3 w-full rounded-lg border px-4 py-2 text-[12px] font-semibold hover:bg-[#F7F6F2]"
+            >
+              View conversation
+            </button>
+            {job.bookingStatus === "completed" && (
+              <RateJobRow job={job} onRated={handleRated} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const POSTING_STATUS_TONE = {
+  open: "bg-[#1E7A34]/10 text-[#1E7A34]",
+  closed: "bg-[#EFEDE6] text-[#55605A]",
+  cancelled: "bg-red-50 text-red-600",
+};
+
+function JobPostingForm({ onCancel, onCreated }) {
+  const { states: locationStates, getLgas } = useLocations();
+  const [fd, setFd] = useState({
+    title: "",
+    description: "",
+    category: "",
+    state: "",
+    city: "",
+    budget: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const citiesForState = getLgas(fd.state);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!fd.title.trim() || !fd.description.trim()) {
+      setError("Title and description are required.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("authToken");
+      const API_URL =
+        import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+      const res = await fetch(`${API_URL}/customer/job-postings`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...fd,
+          budget: fd.budget ? Number(fd.budget) : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      onCreated?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3 rounded-xl border bg-white p-4 md:p-5">
+      <div>
+        <label className="text-[12px] font-semibold">Title</label>
+        <input
+          value={fd.title}
+          onChange={(e) => setFd({ ...fd, title: e.target.value })}
+          placeholder="e.g. Fix leaking kitchen pipe"
+          className="mt-1 w-full rounded-lg border px-3 py-2.5 text-[13px]"
+        />
+      </div>
+      <div>
+        <label className="text-[12px] font-semibold">Description</label>
+        <textarea
+          value={fd.description}
+          onChange={(e) => setFd({ ...fd, description: e.target.value })}
+          rows={4}
+          placeholder="Describe what you need done"
+          className="mt-1 w-full rounded-lg border px-3 py-2.5 text-[13px]"
+        />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <select
+          value={fd.category}
+          onChange={(e) => setFd({ ...fd, category: e.target.value })}
+          className="rounded-lg border px-3 py-2.5 text-[13px]"
+        >
+          <option value="">Category</option>
+          {Object.entries(SERVICE_CATEGORIES).map(([g, s]) => (
+            <optgroup key={g} label={g}>
+              {s.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <select
+          value={fd.state}
+          onChange={(e) => setFd({ ...fd, state: e.target.value, city: "" })}
+          className="rounded-lg border px-3 py-2.5 text-[13px]"
+        >
+          <option value="">State</option>
+          {locationStates.map((s) => (
+            <option key={s}>{s}</option>
+          ))}
+        </select>
+        <select
+          value={fd.city}
+          onChange={(e) => setFd({ ...fd, city: e.target.value })}
+          disabled={!fd.state}
+          className="rounded-lg border px-3 py-2.5 text-[13px]"
+        >
+          <option value="">City</option>
+          {citiesForState.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="text-[12px] font-semibold">Budget (optional, ₦)</label>
+        <input
+          type="number"
+          min="0"
+          value={fd.budget}
+          onChange={(e) => setFd({ ...fd, budget: e.target.value })}
+          placeholder="e.g. 20000"
+          className="mt-1 w-full rounded-lg border px-3 py-2.5 text-[13px]"
+        />
+      </div>
+      {error && <p className="text-[12px] text-red-600">{error}</p>}
+      <div className="flex gap-3">
+        <button
+          type="submit"
+          disabled={submitting}
+          className="flex-1 rounded-lg bg-[#1E7A34] px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-60"
+        >
+          {submitting ? "Posting..." : "Post job"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border px-4 py-2.5 text-[13px] font-semibold"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function JobPostingDetail({ postingId, onBack, onMessageProvider }) {
+  const [posting, setPosting] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [closing, setClosing] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("authToken");
+      const API_URL =
+        import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+      const res = await fetch(`${API_URL}/customer/job-postings/${postingId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setPosting(data.data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, [postingId]);
+
+  const handleClose = async () => {
+    setClosing(true);
+    try {
+      const token = localStorage.getItem("authToken");
+      const API_URL =
+        import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+      await fetch(`${API_URL}/customer/job-postings/${postingId}/close`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setClosing(false);
+    }
+  };
+
+  if (loading) return <SkeletonBlock className="h-[200px] rounded-xl" />;
+  if (error) return <ErrorBanner message={error} onRetry={load} />;
+  if (!posting) return null;
+
+  return (
+    <div className="space-y-4">
+      <button
+        onClick={onBack}
+        className="flex items-center gap-1 text-[12px] font-semibold text-[#55605A]"
+      >
+        <ChevronLeft className="h-4 w-4" /> Back to postings
+      </button>
+      <div className="rounded-xl border bg-white p-4 md:p-5">
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <h3 className="text-[15px] font-semibold">{posting.title}</h3>
+          <span
+            className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase ${POSTING_STATUS_TONE[posting.status] || ""}`}
+          >
+            {posting.status}
+          </span>
+        </div>
+        <p className="text-[13px] text-[#55605A] mb-3">{posting.description}</p>
+        <div className="flex flex-wrap gap-3 text-[11px] text-[#9A9488] mb-3">
+          {posting.category && <span>{posting.category}</span>}
+          {(posting.city || posting.state) && (
+            <span>{[posting.city, posting.state].filter(Boolean).join(", ")}</span>
+          )}
+          {posting.budget > 0 && <span>Budget ₦{posting.budget.toLocaleString()}</span>}
+        </div>
+        {posting.status === "open" && (
+          <button
+            onClick={handleClose}
+            disabled={closing}
+            className="rounded-lg border px-3 py-1.5 text-[12px] font-semibold hover:bg-[#F7F6F2] disabled:opacity-60"
+          >
+            {closing ? "Closing..." : "Close posting"}
+          </button>
+        )}
+      </div>
+      <div>
+        <h4 className="text-[13px] font-semibold mb-2">
+          Interested providers ({posting.applicants.length})
+        </h4>
+        {posting.applicants.length === 0 ? (
+          <EmptyState icon={Package} title="No applicants yet" />
+        ) : (
+          <div className="space-y-3">
+            {posting.applicants.map((a) => (
+              <div key={a.providerId} className="rounded-xl border bg-white p-4 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold">{a.name}</p>
+                  <p className="text-[11px] text-[#9A9488]">
+                    {a.serviceType} · {a.location} · ⭐ {a.rating} · {a.completedJobs} jobs
+                  </p>
+                  {a.message && (
+                    <p className="text-[12px] text-[#55605A] mt-1.5">{a.message}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() =>
+                    onMessageProvider?.({
+                      id: a.providerId,
+                      fullName: a.name,
+                      companyName: a.companyName,
+                      serviceType: a.serviceType,
+                    })
+                  }
+                  className="flex-shrink-0 rounded-lg bg-[#1E7A34] px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-[#166B2C]"
+                >
+                  Message
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function JobPostingsPanel({ onMessageProvider }) {
+  const [postings, setPostings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [view, setView] = useState("list"); // list | create
+  const [selectedId, setSelectedId] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("authToken");
+      const API_URL =
+        import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+      const res = await fetch(`${API_URL}/customer/job-postings`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setPostings(data.data || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  if (selectedId) {
+    return (
+      <JobPostingDetail
+        postingId={selectedId}
+        onBack={() => {
+          setSelectedId(null);
+          load();
+        }}
+        onMessageProvider={onMessageProvider}
+      />
+    );
+  }
+
+  if (view === "create") {
+    return (
+      <JobPostingForm
+        onCancel={() => setView("list")}
+        onCreated={() => {
+          setView("list");
+          load();
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <button
+        onClick={() => setView("create")}
+        className="w-full rounded-lg bg-[#1E7A34] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[#166B2C]"
+      >
+        + Post a job
+      </button>
+      {loading ? (
+        <div className="space-y-3">
+          {[0, 1].map((i) => (
+            <SkeletonBlock key={i} className="h-[90px] rounded-xl" />
+          ))}
+        </div>
+      ) : error ? (
+        <ErrorBanner message={error} onRetry={load} />
+      ) : postings.length === 0 ? (
+        <EmptyState icon={Package} title="You haven't posted any jobs yet" />
+      ) : (
+        postings.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => setSelectedId(p.id)}
+            className="w-full text-left rounded-xl border bg-white p-4 hover:bg-[#F7F6F2]"
+          >
+            <div className="flex items-start justify-between gap-3 mb-1">
+              <h4 className="text-[14px] font-semibold">{p.title}</h4>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${POSTING_STATUS_TONE[p.status] || ""}`}
+              >
+                {p.status}
+              </span>
+            </div>
+            <p className="text-[12px] text-[#9A9488]">
+              {p.applicantCount} applicant{p.applicantCount === 1 ? "" : "s"}
+              {p.category ? ` · ${p.category}` : ""}
+            </p>
+          </button>
+        ))
+      )}
+    </div>
+  );
+}
+
+function JobsTab({ onOpenConversation, onMessageProvider }) {
+  const [subView, setSubView] = useState("jobs"); // jobs | postings
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center gap-1 rounded-lg bg-[#F7F6F2] p-1 w-fit">
+        <button
+          onClick={() => setSubView("jobs")}
+          className={`px-3 py-1.5 rounded-md text-[12px] font-semibold ${subView === "jobs" ? "bg-white shadow-sm" : "text-[#55605A]"}`}
+        >
+          My Jobs
+        </button>
+        <button
+          onClick={() => setSubView("postings")}
+          className={`px-3 py-1.5 rounded-md text-[12px] font-semibold ${subView === "postings" ? "bg-white shadow-sm" : "text-[#55605A]"}`}
+        >
+          Post a Job
+        </button>
+      </div>
+      {subView === "jobs" ? (
+        <MyJobsPanel onOpenConversation={onOpenConversation} />
+      ) : (
+        <JobPostingsPanel onMessageProvider={onMessageProvider} />
+      )}
+    </div>
+  );
+}
+
 // ========== MAIN DASHBOARD ==========
 export default function Dashboard({
   categories,
@@ -1035,10 +1757,13 @@ export default function Dashboard({
     favorites,
     searchResults,
     isSearching,
+    loadingMore,
+    searchPagination,
     loading,
     error,
     refetch,
     search,
+    loadMoreResults,
     toggleFavorite,
     markNotificationRead,
     sendMessage,
@@ -1244,6 +1969,14 @@ export default function Dashboard({
               socket={socket}
               socketConnected={socketConnected}
             />
+          ) : activeView === "jobs" ? (
+            <JobsTab
+              onOpenConversation={(chat) => {
+                setSelectedChat(chat);
+                setActiveView("messages");
+              }}
+              onMessageProvider={handleMessagePro}
+            />
           ) : activeView === "support" ? (
             <SupportChat />
           ) : activeView === "notifications" ? (
@@ -1406,7 +2139,7 @@ export default function Dashboard({
                       Results{" "}
                       {searchResults?.length > 0 && (
                         <span className="ml-2 text-[12px] md:text-[14px] font-normal">
-                          ({searchResults.length})
+                          ({searchPagination?.total || searchResults.length})
                         </span>
                       )}
                     </h2>
@@ -1430,17 +2163,32 @@ export default function Dashboard({
                   ) : !searchResults?.length ? (
                     <EmptyState icon={Search} title="No professionals found" />
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
-                      {searchResults.map((pro) => (
-                        <ProTicketCard
-                          key={pro.id}
-                          pro={pro}
-                          onMessage={handleMessagePro}
-                          onToggleFavorite={toggleFavorite}
-                          onViewProfile={handleViewProfile}
-                        />
-                      ))}
-                    </div>
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
+                        {searchResults.map((pro) => (
+                          <ProTicketCard
+                            key={pro.id}
+                            pro={pro}
+                            onMessage={handleMessagePro}
+                            onToggleFavorite={toggleFavorite}
+                            onViewProfile={handleViewProfile}
+                          />
+                        ))}
+                      </div>
+                      {searchPagination?.page < searchPagination?.pages && (
+                        <div className="mt-4 flex justify-center">
+                          <button
+                            onClick={loadMoreResults}
+                            disabled={loadingMore}
+                            className="rounded-lg border border-[#E2E0D9] bg-white px-5 py-2.5 text-[12px] md:text-[13px] font-semibold text-[#55605A] hover:bg-[#F7F6F2] disabled:opacity-60"
+                          >
+                            {loadingMore
+                              ? "Loading..."
+                              : `Load more (${searchPagination.total - searchResults.length} more)`}
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </section>
               )}

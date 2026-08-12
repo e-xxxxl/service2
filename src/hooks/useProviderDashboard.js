@@ -93,23 +93,12 @@ export function useProviderDashboard() {
     }
   };
 
-  const respondToJob = async (jobId, response) => {
-    try {
-      await api.respondToJob(jobId, response);
-      await load();
-    } catch (err) {
-      setError(err.message);
-      throw err;
-    }
-  };
-
   return {
     ...state,
     loading,
     error,
     refetch: load,
     updateAvailability,
-    updateProfile,
-    respondToJob
+    updateProfile
   };
 }

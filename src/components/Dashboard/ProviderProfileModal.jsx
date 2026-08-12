@@ -166,6 +166,36 @@ export default function ProviderProfileModal({ providerId, onClose, onMessage, o
             <span className="text-[13px] text-[#55605A]">{provider.status}</span>
           </div>
 
+          {/* Reviews */}
+          {provider.reviews && provider.reviews.length > 0 && (
+            <div className="mb-6">
+              <h4 className="text-[13px] font-semibold text-[#1E2420] mb-2">
+                Reviews ({provider.totalReviews || provider.reviews.length})
+              </h4>
+              <div className="space-y-3">
+                {provider.reviews.map((r) => (
+                  <div key={r.id} className="rounded-xl border border-[#E2E0D9] p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <Star
+                            key={n}
+                            className={`h-3.5 w-3.5 ${n <= r.rating ? 'fill-[#F0821E] text-[#F0821E]' : 'text-[#D8D5CB]'}`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-[11px] text-[#9A9488]">
+                        {new Date(r.createdAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                    {r.comment && <p className="text-[12px] text-[#55605A]">{r.comment}</p>}
+                    <p className="text-[11px] text-[#9A9488] mt-1">— {r.customerName}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex gap-3">
             <button onClick={() => { onMessage?.(provider); onClose?.(); }}
