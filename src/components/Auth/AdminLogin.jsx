@@ -1,6 +1,7 @@
 // components/admin/AdminLogin.jsx
 import { useState } from "react";
 import { Shield, Mail, Lock, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { friendlyErrorMessage } from "../../utils/apiError";
 
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
@@ -28,7 +29,7 @@ const handleSubmit = async (e) => {
       localStorage.setItem('adminAuthToken', data.token);
       window.location.href = '/admin/dashboard';
     } catch (err) {
-      setError(err.message);
+      setError(friendlyErrorMessage(err));
     } finally {
       setLoading(false);
     }

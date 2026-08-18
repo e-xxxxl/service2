@@ -47,6 +47,7 @@ import PaystackPaymentModal from "../payment/PaystackPaymentModal";
 import ContactReveal from "../payment/ContactReveal";
 import SupportChat from "../support/SupportChat";
 import { useAuth } from "../../context/AuthContext";
+import { friendlyErrorMessage } from "../../utils/apiError";
 
 const NAV_CONFIG = [
   { id: "dashboard", label: "Home", icon: LayoutGrid },
@@ -674,7 +675,7 @@ function MessagesTab({
       if (!res.ok) throw new Error(data.message);
       await fetchMessages(selectedChat.id);
     } catch (err) {
-      setWarning(err.message);
+      setWarning(friendlyErrorMessage(err));
       setTimeout(() => setWarning(""), 5000);
     } finally {
       setJobActionLoading(false);
@@ -711,7 +712,7 @@ function MessagesTab({
       setSeenByProvider(false);
       setMessageText("");
     } catch (err) {
-      setWarning(err.message);
+      setWarning(friendlyErrorMessage(err));
     } finally {
       setSending(false);
     }
@@ -734,7 +735,7 @@ function MessagesTab({
       if (!res.ok) throw new Error(data.message);
       fetchMessages(cid);
     } catch (err) {
-      setWarning(err.message);
+      setWarning(friendlyErrorMessage(err));
       setTimeout(() => setWarning(""), 5000);
     } finally {
       setAcceptingQuote(false);
@@ -1188,7 +1189,7 @@ function RateJobRow({ job, onRated }) {
       if (!res.ok) throw new Error(data.message);
       onRated?.(job.id, { rating: selectedStar, comment });
     } catch (err) {
-      setError(err.message);
+      setError(friendlyErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -1260,7 +1261,7 @@ function MyJobsPanel({ onOpenConversation }) {
           setJobs((data.data || []).filter((c) => c.bookingStatus && c.bookingStatus !== "none"));
         }
       } catch (err) {
-        if (!cancelled) setError(err.message);
+        if (!cancelled) setError(friendlyErrorMessage(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -1388,7 +1389,7 @@ function JobPostingForm({ onCancel, onCreated }) {
       if (!res.ok) throw new Error(data.message);
       onCreated?.();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -1505,7 +1506,7 @@ function JobPostingDetail({ postingId, onBack, onMessageProvider }) {
       if (!res.ok) throw new Error(data.message);
       setPosting(data.data);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -1527,7 +1528,7 @@ function JobPostingDetail({ postingId, onBack, onMessageProvider }) {
       });
       await load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyErrorMessage(err));
     } finally {
       setClosing(false);
     }
@@ -1633,7 +1634,7 @@ function JobPostingsPanel({ onMessageProvider }) {
       if (!res.ok) throw new Error(data.message);
       setPostings(data.data || []);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyErrorMessage(err));
     } finally {
       setLoading(false);
     }

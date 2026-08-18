@@ -1,20 +1,27 @@
 // services/api.js
+import { friendlyErrorMessage } from '../utils/apiError';
+
 const BASE_URL = import.meta.env.VITE_API_URL || 'https://service-server-e64r.onrender.com/api';
 
 async function request(path, options = {}) {
   const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-  
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
-  
+
+  let res;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+  } catch (err) {
+    throw new Error(friendlyErrorMessage(err), { cause: err });
+  }
+
   const data = await res.json();
-  
+
   if (!res.ok) {
     if (res.status === 401) {
       localStorage.removeItem('authToken');
@@ -22,7 +29,7 @@ async function request(path, options = {}) {
     }
     throw new Error(data.message || 'Request failed');
   }
-  
+
   return data;
 }
 

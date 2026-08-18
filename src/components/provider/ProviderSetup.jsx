@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { SERVICE_CATEGORIES } from '../../constants/serviceCategories';
 import { useLocations } from '../../hooks/useLocations';
+import { friendlyErrorMessage } from '../../utils/apiError';
 
 export default function ProviderSetup() {
   const navigate = useNavigate();
@@ -114,7 +115,7 @@ export default function ProviderSetup() {
       setSuccess('Profile submitted for verification! You\'ll be notified once approved.');
       setTimeout(() => navigate('/provider-dashboard'), 3000);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyErrorMessage(err));
     } finally {
       setLoading(false);
     }

@@ -1,7 +1,21 @@
 // context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { friendlyErrorMessage } from '../utils/apiError';
 
 const AuthContext = createContext(null);
+
+// A fetch() that never gets a response (offline, CORS block, server down)
+// throws a raw browser TypeError - every call site below awaits this
+// instead of fetch() directly so that failure comes back as one
+// consistent, user-facing "Network error" message rather than "Failed to
+// fetch" verbatim.
+async function authFetch(url, options) {
+  try {
+    return await fetch(url, options);
+  } catch (err) {
+    throw new Error(friendlyErrorMessage(err), { cause: err });
+  }
+}
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -40,7 +54,7 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (e) {}
 
-      const response = await fetch(`${API_URL}/auth/verify`, {
+      const response = await authFetch(`${API_URL}/auth/verify`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -73,7 +87,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     console.log('Login attempt:', credentials.email);
     
-    const response = await fetch(`${API_URL}/auth/login`, {
+    const response = await authFetch(`${API_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials),
@@ -103,7 +117,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signup = async (userData) => {
-    const response = await fetch(`${API_URL}/auth/signup`, {
+    const response = await authFetch(`${API_URL}/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(userData),
@@ -120,7 +134,7 @@ export const AuthProvider = ({ children }) => {
 
   // context/AuthContext.jsx - Update verifyEmail function
 const verifyEmail = async (token) => {
-    const response = await fetch(`${API_URL}/auth/verify-email/${token}`, {
+    const response = await authFetch(`${API_URL}/auth/verify-email/${token}`, {
       method: 'POST',
     });
 
@@ -148,7 +162,7 @@ const verifyEmail = async (token) => {
   };
 
   const resendVerification = async (email) => {
-    const response = await fetch(`${API_URL}/auth/resend-verification`, {
+    const response = await authFetch(`${API_URL}/auth/resend-verification`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
@@ -168,7 +182,7 @@ const verifyEmail = async (token) => {
   };
 
   const forgotPassword = async (email) => {
-    const response = await fetch(`${API_URL}/auth/forgot-password`, {
+    const response = await authFetch(`${API_URL}/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
@@ -184,7 +198,7 @@ const verifyEmail = async (token) => {
   };
 
   const resetPassword = async (token, password) => {
-    const response = await fetch(`${API_URL}/auth/reset-password/${token}`, {
+    const response = await authFetch(`${API_URL}/auth/reset-password/${token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),

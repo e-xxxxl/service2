@@ -9,6 +9,7 @@ import Navbar from '../Navbar/Navbar';
 import GoogleButton from './GoogleButton';
 import { SERVICE_CATEGORIES } from '../../constants/serviceCategories';
 import { useLocations } from '../../hooks/useLocations';
+import { friendlyErrorMessage } from '../../utils/apiError';
 
 const PASSWORD_RULES = [
   { key: 'minLength', label: 'At least 8 characters', test: (p) => p.length >= 8 },
@@ -76,7 +77,7 @@ const SignUp = () => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || 'Signup failed');
       setStep(2);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(friendlyErrorMessage(err)); }
     finally { setLoading(false); }
   };
 

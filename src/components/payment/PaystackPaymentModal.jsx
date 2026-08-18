@@ -9,6 +9,7 @@
 // anything is unlocked or credited.
 import { useEffect, useState } from "react";
 import { X, ShieldCheck, AlertCircle } from "lucide-react";
+import { friendlyErrorMessage } from "../../utils/apiError";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
 const PAYSTACK_PUBLIC_KEY = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || "";
@@ -65,7 +66,7 @@ export default function PaystackPaymentModal({
         setStage("error");
       }
     } catch (err) {
-      setError(err.message || "We couldn't confirm your payment. Please check your payment status before trying again.");
+      setError(friendlyErrorMessage(err) || "We couldn't confirm your payment. Please check your payment status before trying again.");
       setStage("error");
     }
   };
@@ -98,7 +99,7 @@ export default function PaystackPaymentModal({
       });
       handler.openIframe();
     } catch (err) {
-      setError(err.message || "Failed to start payment. Please try again.");
+      setError(friendlyErrorMessage(err) || "Failed to start payment. Please try again.");
       setStage("error");
     }
   };

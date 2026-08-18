@@ -48,6 +48,7 @@ import { useLocations } from "../../hooks/useLocations";
 import { useSocket } from "../../hooks/useSocket";
 import ContactReveal from "../payment/ContactReveal";
 import SupportChat from "../support/SupportChat";
+import { friendlyErrorMessage } from "../../utils/apiError";
 
 const NAV_CONFIG = [
   { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
@@ -832,7 +833,7 @@ function ProfileView({
       setEditingAddress(false);
       setTimeout(() => setSm(""), 3000);
     } catch (error) {
-      setEm(error.message);
+      setEm(friendlyErrorMessage(error));
       setTimeout(() => setEm(""), 5000);
     } finally {
       setSaving(false);
@@ -1550,7 +1551,7 @@ function MessagesView({
       if (!res.ok) throw new Error(data.message);
       await fetchMessages(selectedConversation.id);
     } catch (err) {
-      setWarning(err.message);
+      setWarning(friendlyErrorMessage(err));
       setTimeout(() => setWarning(""), 5000);
     } finally {
       setJobActionLoading(false);
@@ -1599,7 +1600,7 @@ function MessagesView({
       setSeenByCustomer(false);
       onNewMessageChange?.("");
     } catch (err) {
-      setWarning(err.message);
+      setWarning(friendlyErrorMessage(err));
     } finally {
       setSending(false);
     }
@@ -1626,7 +1627,7 @@ function MessagesView({
       fetchMessages(selectedConversation.id);
       setShowQuoteModal(false);
     } catch (err) {
-      setWarning(err.message);
+      setWarning(friendlyErrorMessage(err));
     }
   };
 
@@ -2329,11 +2330,7 @@ function WalletView() {
       setWallet(walletData.data);
       setTransactions(txData.data || []);
     } catch (err) {
-      setError(
-        err.message?.toLowerCase().includes("fetch")
-          ? "We couldn't connect to the server. Please check your internet connection and try again."
-          : err.message
-      );
+      setError(friendlyErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -2591,7 +2588,7 @@ function MyPaidJobsPanel({ onOpenConversation }) {
         if (!res.ok) throw new Error(data.message);
         if (!cancelled) setJobs(data.data || []);
       } catch (err) {
-        if (!cancelled) setError(err.message);
+        if (!cancelled) setError(friendlyErrorMessage(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -2675,7 +2672,7 @@ function JobBoardPanel() {
       if (subView === "browse") setPostings(data.data || []);
       else setApplications(data.data || []);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -2704,7 +2701,7 @@ function JobBoardPanel() {
       if (!res.ok) throw new Error(data.message);
       await load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyErrorMessage(err));
     } finally {
       setApplyingId(null);
     }

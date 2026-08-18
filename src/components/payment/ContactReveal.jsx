@@ -8,6 +8,7 @@
 // the unlock server-side too.
 import { useState } from "react";
 import { Lock, Phone, Mail, ChevronDown } from "lucide-react";
+import { friendlyErrorMessage } from "../../utils/apiError";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
 
@@ -44,7 +45,7 @@ export default function ContactReveal({ role, conversationId, contactUnlocked })
       if (!res.ok || !data.success) throw new Error(data.message || "Failed to load contact");
       setContact(data.data);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyErrorMessage(err));
     } finally {
       setLoading(false);
     }

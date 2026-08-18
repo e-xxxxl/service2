@@ -5,6 +5,7 @@
 // via /api/support/thread), not a one-off report with a faked canned reply.
 import { useEffect, useRef, useState } from "react";
 import { Flag, AlertCircle, Send } from "lucide-react";
+import { friendlyErrorMessage } from "../../utils/apiError";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
 
@@ -75,7 +76,7 @@ export default function SupportChat() {
       setThread(data.data);
       setMessageText("");
     } catch (err) {
-      setError(err.message || "Failed to send message. Please try again.");
+      setError(friendlyErrorMessage(err) || "Failed to send message. Please try again.");
     } finally {
       setSending(false);
     }
