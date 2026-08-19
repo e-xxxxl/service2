@@ -6,7 +6,7 @@ import {
   Eye, Check, ChevronRight, RefreshCw, Mail, Phone, MapPin,
   Star, Image, FileText, Activity, MessageCircle, Menu,
   ChevronLeft, UserPlus, Settings2, Download, Calculator,
-  CreditCard, Edit3, Save, Send
+  CreditCard, Edit3, Save, Send, Wallet, Upload, ExternalLink
 } from "lucide-react";
 import logo from "../../assets/dashlogo.png";
 
@@ -18,6 +18,7 @@ const NAV_CONFIG = [
   { id: "contacts", label: "Contacts", icon: MessageCircle },
   { id: "activity", label: "Activity", icon: Activity },
   { id: "reports", label: "Reports", icon: AlertCircle },
+  { id: "withdrawals", label: "Withdrawals", icon: Wallet },
   { id: "admins", label: "Admins", icon: Shield, superAdminOnly: true },
   { id: "settings", label: "Settings", icon: Settings2 },
 ];
@@ -58,6 +59,13 @@ export default function AdminDashboard() {
   });
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [withdrawals, setWithdrawals] = useState([]);
+  const [withdrawalFilter, setWithdrawalFilter] = useState("pending");
+  const [approvingWithdrawal, setApprovingWithdrawal] = useState(null);
+  const [receiptFile, setReceiptFile] = useState(null);
+  const [rejectingWithdrawal, setRejectingWithdrawal] = useState(null);
+  const [withdrawalRejectReason, setWithdrawalRejectReason] = useState("");
+  const [processingWithdrawal, setProcessingWithdrawal] = useState(false);
   
   // Editing states
   const [editingUser, setEditingUser] = useState(null);
@@ -97,11 +105,16 @@ export default function AdminDashboard() {
     if (activeView === "activity") fetchActivity();
     if (activeView === "reports") fetchThreads();
     if (activeView === "admins") fetchAdmins();
+    if (activeView === "withdrawals") fetchWithdrawals();
   }, [activeView, page, searchTerm, filterStatus]);
 
   useEffect(() => {
     if (activeView === "reports") fetchThreads();
   }, [threadFilter]);
+
+  useEffect(() => {
+    if (activeView === "withdrawals") fetchWithdrawals();
+  }, [withdrawalFilter]);
 
   useEffect(() => { setSidebarOpen(false); }, [activeView]);
 
@@ -217,6 +230,70 @@ export default function AdminDashboard() {
       showMessage(setError, e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchWithdrawals = async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`${API_URL}/admin/withdrawals?status=${withdrawalFilter}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const d = await r.json();
+      if (d.success) setWithdrawals(d.data);
+      else showMessage(setError, d.message || "Failed to load withdrawals");
+    } catch (e) {
+      showMessage(setError, "We couldn't connect to the server. Please check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const approveWithdrawal = async () => {
+    if (!receiptFile) { showMessage(setError, "Please attach a receipt to approve this withdrawal."); return; }
+    setProcessingWithdrawal(true);
+    try {
+      const fd = new FormData();
+      fd.append("receipt", receiptFile);
+      const r = await fetch(`${API_URL}/admin/withdrawals/${approvingWithdrawal.id}/approve`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd
+      });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.message);
+      showMessage(setSuccess, "Withdrawal approved");
+      setApprovingWithdrawal(null);
+      setReceiptFile(null);
+      fetchWithdrawals();
+      fetchDashboard();
+    } catch (e) {
+      showMessage(setError, e.message || "Failed to approve withdrawal");
+    } finally {
+      setProcessingWithdrawal(false);
+    }
+  };
+
+  const rejectWithdrawal = async () => {
+    if (!withdrawalRejectReason.trim()) { showMessage(setError, "Please enter a reason for rejecting this withdrawal."); return; }
+    setProcessingWithdrawal(true);
+    try {
+      const r = await fetch(`${API_URL}/admin/withdrawals/${rejectingWithdrawal.id}/reject`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: withdrawalRejectReason.trim() })
+      });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.message);
+      showMessage(setSuccess, "Withdrawal rejected");
+      setRejectingWithdrawal(null);
+      setWithdrawalRejectReason("");
+      fetchWithdrawals();
+      fetchDashboard();
+    } catch (e) {
+      showMessage(setError, e.message || "Failed to reject withdrawal");
+    } finally {
+      setProcessingWithdrawal(false);
     }
   };
 
@@ -789,16 +866,37 @@ const rejectProvider = async () => {
           {/* ==================== DASHBOARD VIEW ==================== */}
           {activeView === "dashboard" && (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-6 mb-4 md:mb-6">
-                <div className="rounded-xl border border-[#1E7A34]/20 bg-[#1E7A34]/5 p-4 md:p-6">
-                  <CreditCard className="h-5 w-5 md:h-6 md:w-6 text-[#1E7A34] mb-2 md:mb-3" />
-                  <p className="text-[22px] md:text-[28px] font-bold text-[#1E7A34]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-4 md:mb-6">
+                <div className="rounded-xl border border-[#E2E0D9] bg-white p-4 md:p-6">
+                  <CreditCard className="h-5 w-5 md:h-6 md:w-6 text-[#55605A] mb-2 md:mb-3" />
+                  <p className="text-[22px] md:text-[28px] font-bold">
                     ₦{(dashboardData?.stats?.todayRevenue || 0).toLocaleString()}
                   </p>
                   <p className="text-[11px] md:text-[13px] text-[#55605A] mt-1">
                     Made today · {dashboardData?.stats?.todayPaymentsCount || 0} payment{dashboardData?.stats?.todayPaymentsCount === 1 ? "" : "s"}
                   </p>
                 </div>
+                <div className="rounded-xl border border-[#1E7A34]/20 bg-[#1E7A34]/5 p-4 md:p-6">
+                  <CreditCard className="h-5 w-5 md:h-6 md:w-6 text-[#1E7A34] mb-2 md:mb-3" />
+                  <p className="text-[22px] md:text-[28px] font-bold text-[#1E7A34]">
+                    ₦{(dashboardData?.stats?.allTimeRevenue || 0).toLocaleString()}
+                  </p>
+                  <p className="text-[11px] md:text-[13px] text-[#55605A] mt-1">
+                    All-time revenue · {dashboardData?.stats?.allTimePaymentsCount || 0} payments
+                  </p>
+                </div>
+                <button
+                  onClick={() => setActiveView("withdrawals")}
+                  className="text-left rounded-xl border border-[#F0821E]/20 bg-[#FFF8F0] p-4 md:p-6 hover:bg-[#FFF1DE] transition-colors"
+                >
+                  <Wallet className="h-5 w-5 md:h-6 md:w-6 text-[#F0821E] mb-2 md:mb-3" />
+                  <p className="text-[22px] md:text-[28px] font-bold text-[#F0821E]">
+                    ₦{(dashboardData?.stats?.totalProviderBalanceNet || 0).toLocaleString()}
+                  </p>
+                  <p className="text-[11px] md:text-[13px] text-[#55605A] mt-1">
+                    Provider balance (net) · {dashboardData?.stats?.pendingWithdrawalsCount || 0} pending withdrawal{dashboardData?.stats?.pendingWithdrawalsCount === 1 ? "" : "s"}
+                  </p>
+                </button>
                 <button
                   onClick={() => { fetchOngoingJobs(); setShowJobsModal(true); }}
                   className="text-left rounded-xl border border-[#E2E0D9] bg-white p-4 md:p-6 hover:bg-[#F7F6F2] transition-colors"
@@ -1488,6 +1586,84 @@ const rejectProvider = async () => {
             </div>
           )}
 
+          {/* ==================== WITHDRAWALS VIEW ==================== */}
+          {activeView === "withdrawals" && (
+            <div>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-4">
+                {["pending", "approved", "rejected", "all"].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setWithdrawalFilter(s)}
+                    className={`px-3 py-2 rounded-lg text-[12px] font-medium whitespace-nowrap capitalize ${withdrawalFilter === s ? "bg-[#1E2420] text-white" : "bg-white border text-[#55605A] hover:bg-[#F7F6F2]"}`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              {loading ? (
+                <p className="text-center py-12 text-[13px] text-[#9A9488]">Loading...</p>
+              ) : withdrawals.length === 0 ? (
+                <div className="text-center py-12 bg-white rounded-xl border">
+                  <Wallet className="h-8 w-8 text-[#D8D5CB] mx-auto mb-3" />
+                  <p className="text-[13px] text-[#9A9488]">No {withdrawalFilter !== "all" ? withdrawalFilter : ""} withdrawals</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {withdrawals.map((w) => (
+                    <div key={w.id} className="bg-white rounded-xl border p-4 md:p-5">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
+                        <div>
+                          <p className="text-[14px] font-semibold">{w.providerName}{w.companyName ? ` · ${w.companyName}` : ""}</p>
+                          <p className="text-[11px] text-[#9A9488]">{w.providerEmail}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[16px] font-bold text-[#1E2420]">₦{w.amount.toLocaleString()}</span>
+                          <span className={`px-2 py-1 rounded-full text-[10px] font-semibold uppercase ${w.status === "approved" ? "bg-green-100 text-green-700" : w.status === "rejected" ? "bg-red-100 text-red-700" : "bg-[#FFF3E0] text-[#B85E10]"}`}>
+                            {w.status}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-[12px] text-[#55605A] bg-[#F7F6F2] rounded-lg p-3 mb-3">
+                        <span><strong className="text-[#1E2420]">Bank:</strong> {w.bankSnapshot?.bankName || "N/A"}</span>
+                        <span><strong className="text-[#1E2420]">Account:</strong> {w.bankSnapshot?.accountNumber || "N/A"}</span>
+                        <span><strong className="text-[#1E2420]">Name:</strong> {w.bankSnapshot?.accountName || "N/A"}</span>
+                        <span><strong className="text-[#1E2420]">WhatsApp:</strong> {w.bankSnapshot?.whatsappNumber || "N/A"}</span>
+                      </div>
+                      {w.status === "rejected" && w.rejectionReason && (
+                        <p className="text-[12px] text-red-600 mb-3">Reason: {w.rejectionReason}</p>
+                      )}
+                      {w.status === "approved" && w.receiptUrl && (
+                        <a href={w.receiptUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[12px] text-[#1E7A34] hover:underline mb-3">
+                          <ExternalLink className="h-3.5 w-3.5" /> View receipt
+                        </a>
+                      )}
+                      <div className="flex items-center justify-between text-[11px] text-[#9A9488]">
+                        <span>Requested {new Date(w.requestedAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}</span>
+                        {w.status === "pending" && (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setApprovingWithdrawal(w)}
+                              className="rounded-lg bg-[#1E7A34] px-3 py-1.5 text-[12px] font-semibold text-white flex items-center gap-1"
+                            >
+                              <Check className="h-3.5 w-3.5" /> Approve
+                            </button>
+                            <button
+                              onClick={() => setRejectingWithdrawal(w)}
+                              className="rounded-lg border border-red-300 px-3 py-1.5 text-[12px] font-semibold text-red-600 flex items-center gap-1"
+                            >
+                              <X className="h-3.5 w-3.5" /> Reject
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ==================== ADMINS VIEW ==================== */}
           {activeView === "admins" && isSuperAdmin && (
             <div>
@@ -1672,6 +1848,79 @@ const rejectProvider = async () => {
             <div className="flex gap-3 mt-4 justify-end">
               <button onClick={() => { setShowRejectModal(false); setRejectReason(""); }} className="px-4 py-2 rounded-lg border text-[13px] font-semibold">Cancel</button>
               <button onClick={rejectProvider} className="px-4 py-2 rounded-lg bg-red-600 text-[13px] font-semibold text-white">Reject</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== APPROVE WITHDRAWAL MODAL ==================== */}
+      {approvingWithdrawal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+            <h3 className="text-[16px] font-semibold mb-1">Approve Withdrawal</h3>
+            <p className="text-[13px] text-[#55605A] mb-4">
+              ₦{approvingWithdrawal.amount.toLocaleString()} to {approvingWithdrawal.providerName} · {approvingWithdrawal.bankSnapshot?.bankName} · {approvingWithdrawal.bankSnapshot?.accountNumber}
+            </p>
+            <p className="text-[12px] text-[#55605A] mb-2">
+              Attach proof that you've sent this transfer. The provider will be emailed the receipt.
+            </p>
+            <label className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#D8D5CB] p-4 text-[13px] text-[#55605A] cursor-pointer hover:border-[#1E7A34]">
+              <Upload className="h-4 w-4" />
+              {receiptFile ? receiptFile.name : "Choose receipt file"}
+              <input
+                type="file"
+                className="hidden"
+                onChange={(e) => setReceiptFile(e.target.files[0] || null)}
+              />
+            </label>
+            <div className="flex gap-3 mt-4 justify-end">
+              <button
+                onClick={() => { setApprovingWithdrawal(null); setReceiptFile(null); }}
+                className="px-4 py-2 rounded-lg border text-[13px] font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={approveWithdrawal}
+                disabled={processingWithdrawal}
+                className="px-4 py-2 rounded-lg bg-[#1E7A34] text-[13px] font-semibold text-white disabled:opacity-50"
+              >
+                {processingWithdrawal ? "Approving..." : "Approve"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== REJECT WITHDRAWAL MODAL ==================== */}
+      {rejectingWithdrawal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+            <h3 className="text-[16px] font-semibold mb-1">Reject Withdrawal</h3>
+            <p className="text-[13px] text-[#55605A] mb-4">
+              ₦{rejectingWithdrawal.amount.toLocaleString()} to {rejectingWithdrawal.providerName} - this amount will be returned to their available balance.
+            </p>
+            <textarea
+              value={withdrawalRejectReason}
+              onChange={(e) => setWithdrawalRejectReason(e.target.value)}
+              rows={3}
+              placeholder="Reason..."
+              className="w-full rounded-lg border px-4 py-3 text-[14px] resize-none"
+            />
+            <div className="flex gap-3 mt-4 justify-end">
+              <button
+                onClick={() => { setRejectingWithdrawal(null); setWithdrawalRejectReason(""); }}
+                className="px-4 py-2 rounded-lg border text-[13px] font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={rejectWithdrawal}
+                disabled={processingWithdrawal}
+                className="px-4 py-2 rounded-lg bg-red-600 text-[13px] font-semibold text-white disabled:opacity-50"
+              >
+                {processingWithdrawal ? "Rejecting..." : "Reject"}
+              </button>
             </div>
           </div>
         </div>

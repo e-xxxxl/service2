@@ -39,6 +39,7 @@ import {
   Menu,
   PlayCircle,
   Flag,
+  Wallet,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import logoIcon from "../../assets/dashlogo.png";
@@ -2304,6 +2305,285 @@ function NotificationsView({ notifications, loading, markNotificationRead }) {
 }
 
 // ========== WALLET ==========
+function BankDetailsSection({ wallet, onSaved }) {
+  const [banks, setBanks] = useState([]);
+  const [form, setForm] = useState({ bankCode: "", accountNumber: "", whatsappNumber: "" });
+  const [editing, setEditing] = useState(!wallet?.bankDetails);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const API_URL =
+    import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+
+  useEffect(() => {
+    if (!editing || banks.length > 0) return;
+    (async () => {
+      try {
+        const token = localStorage.getItem("authToken");
+        const res = await fetch(`${API_URL}/provider/banks`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success) setBanks(data.data || []);
+      } catch (err) {
+        // Bank list failing to load just means the select stays empty -
+        // the form itself still shows the friendly error on submit.
+      }
+    })();
+  }, [editing]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.bankCode || !form.accountNumber.trim() || !form.whatsappNumber.trim()) {
+      setError("Bank, account number, and WhatsApp number are all required.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${API_URL}/provider/bank-details`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setEditing(false);
+      onSaved?.(data.data);
+    } catch (err) {
+      setError(friendlyErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing && wallet?.bankDetails) {
+    return (
+      <div className="rounded-xl border border-[#E2E0D9] bg-white p-5 mb-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-[14px] font-semibold mb-2">Bank details</h3>
+            <p className="text-[13px] text-[#1E2420]">
+              {wallet.bankDetails.bankName} · {wallet.bankDetails.accountNumber}
+            </p>
+            <p className="text-[12px] text-[#1E7A34] font-medium mt-0.5">
+              ✓ {wallet.bankDetails.accountName}
+            </p>
+            <p className="text-[12px] text-[#9A9488] mt-1">WhatsApp: {wallet.bankDetails.whatsappNumber}</p>
+          </div>
+          <button
+            onClick={() => setEditing(true)}
+            className="rounded-lg border px-3 py-1.5 text-[12px] font-semibold hover:bg-[#F7F6F2] flex-shrink-0"
+          >
+            Change
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="rounded-xl border border-[#E2E0D9] bg-white p-5 mb-6 space-y-3">
+      <h3 className="text-[14px] font-semibold">Bank details</h3>
+      <p className="text-[12px] text-[#9A9488]">
+        We verify your account name via Paystack before saving, so payouts go to the right place.
+      </p>
+      <select
+        value={form.bankCode}
+        onChange={(e) => setForm({ ...form, bankCode: e.target.value })}
+        className="w-full rounded-lg border px-3 py-2.5 text-[13px]"
+      >
+        <option value="">Select bank</option>
+        {banks.map((b) => (
+          <option key={b.code} value={b.code}>
+            {b.name}
+          </option>
+        ))}
+      </select>
+      <input
+        value={form.accountNumber}
+        onChange={(e) => setForm({ ...form, accountNumber: e.target.value.replace(/\D/g, "") })}
+        placeholder="Account number"
+        maxLength={10}
+        className="w-full rounded-lg border px-3 py-2.5 text-[13px]"
+      />
+      <input
+        value={form.whatsappNumber}
+        onChange={(e) => setForm({ ...form, whatsappNumber: e.target.value })}
+        placeholder="WhatsApp number"
+        className="w-full rounded-lg border px-3 py-2.5 text-[13px]"
+      />
+      {error && <p className="text-[12px] text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={saving}
+          className="flex-1 rounded-lg bg-[#1E7A34] px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-60"
+        >
+          {saving ? "Verifying..." : "Verify & save"}
+        </button>
+        {wallet?.bankDetails && (
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="rounded-lg border px-4 py-2.5 text-[13px] font-semibold"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+    </form>
+  );
+}
+
+const WITHDRAWAL_STATUS_TONE = {
+  pending: "bg-[#FFF3E0] text-[#B85E10]",
+  approved: "bg-green-100 text-green-700",
+  rejected: "bg-red-100 text-red-700",
+};
+
+function WithdrawalSection({ wallet, onRequested }) {
+  const [amount, setAmount] = useState("");
+  const [requesting, setRequesting] = useState(false);
+  const [error, setError] = useState("");
+  const [withdrawals, setWithdrawals] = useState([]);
+  const [loadingWithdrawals, setLoadingWithdrawals] = useState(true);
+
+  const API_URL =
+    import.meta.env.VITE_API_URL || "https://service-server-e64r.onrender.com/api";
+
+  const loadWithdrawals = async () => {
+    setLoadingWithdrawals(true);
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${API_URL}/provider/withdrawals`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) setWithdrawals(data.data || []);
+    } catch (err) {
+      // History failing to load isn't worth blocking the whole wallet page over.
+    } finally {
+      setLoadingWithdrawals(false);
+    }
+  };
+
+  useEffect(() => {
+    loadWithdrawals();
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const amountNum = Number(amount);
+    if (!amountNum || amountNum <= 0) {
+      setError("Enter a valid amount.");
+      return;
+    }
+    if (amountNum > (wallet?.balance || 0)) {
+      setError("Amount exceeds your available balance.");
+      return;
+    }
+    setRequesting(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${API_URL}/provider/withdrawals`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ amount: amountNum }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setAmount("");
+      await loadWithdrawals();
+      onRequested?.();
+    } catch (err) {
+      setError(friendlyErrorMessage(err));
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  if (!wallet?.bankDetails) {
+    return (
+      <div className="rounded-xl border border-[#E2E0D9] bg-white p-5 mb-8">
+        <h3 className="text-[14px] font-semibold mb-1">Withdraw funds</h3>
+        <p className="text-[13px] text-[#9A9488]">Add and verify your bank details above before requesting a withdrawal.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-8">
+      <form onSubmit={handleSubmit} className="rounded-xl border border-[#E2E0D9] bg-white p-5 mb-4">
+        <h3 className="text-[14px] font-semibold mb-3">Withdraw funds</h3>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <input
+            type="number"
+            min="1"
+            max={wallet?.balance || 0}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder={`Up to ₦${(wallet?.balance || 0).toLocaleString()}`}
+            className="flex-1 rounded-lg border px-3 py-2.5 text-[13px]"
+          />
+          <button
+            type="submit"
+            disabled={requesting || !(wallet?.balance > 0)}
+            className="rounded-lg bg-[#1E7A34] px-5 py-2.5 text-[13px] font-semibold text-white disabled:opacity-50"
+          >
+            {requesting ? "Requesting..." : "Request withdrawal"}
+          </button>
+        </div>
+        {error && <p className="mt-2 text-[12px] text-red-600">{error}</p>}
+      </form>
+
+      <h3 className="text-[15px] font-semibold mb-3">Withdrawal history</h3>
+      {loadingWithdrawals ? (
+        <SkeletonBlock className="h-[80px] rounded-xl" />
+      ) : withdrawals.length === 0 ? (
+        <EmptyState icon={Wallet} title="No withdrawals yet" />
+      ) : (
+        <div className="space-y-2">
+          {withdrawals.map((w) => (
+            <div key={w.id} className="rounded-xl border border-[#E2E0D9] bg-white p-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[14px] font-semibold">₦{w.amount.toLocaleString()}</span>
+                <span className={`px-2 py-1 rounded-full text-[10px] font-semibold uppercase ${WITHDRAWAL_STATUS_TONE[w.status] || ""}`}>
+                  {w.status}
+                </span>
+              </div>
+              <p className="text-[11px] text-[#9A9488]">
+                Requested {new Date(w.requestedAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
+              </p>
+              {w.status === "rejected" && w.rejectionReason && (
+                <p className="text-[12px] text-red-600 mt-1.5">Reason: {w.rejectionReason}</p>
+              )}
+              {w.status === "approved" && w.receiptUrl && (
+                <a
+                  href={w.receiptUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block text-[12px] text-[#1E7A34] hover:underline mt-1.5"
+                >
+                  View receipt
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function WalletView() {
   const [wallet, setWallet] = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -2346,7 +2626,7 @@ function WalletView() {
 
       {error && <ErrorBanner message={error} onRetry={load} />}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         {loading ? (
           [0, 1, 2].map((i) => <SkeletonBlock key={i} className="h-[92px]" />)
         ) : (
@@ -2364,7 +2644,7 @@ function WalletView() {
               </p>
             </div>
             <div className="rounded-xl border border-[#E2E0D9] bg-white p-5">
-              <p className="text-[12px] font-medium text-[#55605A] mb-1">Pending</p>
+              <p className="text-[12px] font-medium text-[#55605A] mb-1">Held (workmanship)</p>
               <p className="text-[26px] font-bold text-[#1E2420]">
                 ₦{(wallet?.pendingEarnings || 0).toLocaleString()}
               </p>
@@ -2372,6 +2652,13 @@ function WalletView() {
           </>
         )}
       </div>
+
+      {!loading && (
+        <>
+          <BankDetailsSection wallet={wallet} onSaved={load} />
+          <WithdrawalSection wallet={wallet} onRequested={load} />
+        </>
+      )}
 
       <h3 className="text-[15px] font-semibold mb-3">Transaction history</h3>
 
