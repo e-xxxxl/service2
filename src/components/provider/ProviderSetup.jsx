@@ -45,8 +45,11 @@ export default function ProviderSetup() {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.type !== 'image/png') {
-      setError('Only PNG images are accepted. Please upload a .png file.');
+    const isImage = file.type.startsWith('image/');
+    const isPdf = file.type === 'application/pdf';
+    const allowed = type === 'nin' ? (isImage || isPdf) : isImage;
+    if (!allowed) {
+      setError(type === 'nin' ? 'NIN document must be a document or an image file.' : 'Selfie photo must be an image.');
       e.target.value = '';
       return;
     }
@@ -54,7 +57,7 @@ export default function ProviderSetup() {
 
     if (type === 'nin') {
       setNinDocument(file);
-      setNinPreview(URL.createObjectURL(file));
+      setNinPreview(file.type === 'application/pdf' ? 'pdf' : URL.createObjectURL(file));
     } else {
       setSelfiePhoto(file);
       setSelfiePreview(URL.createObjectURL(file));
@@ -213,17 +216,23 @@ export default function ProviderSetup() {
               <label className="block text-[13px] font-semibold text-[#1E2420] mb-2">NIN Document / Slip *</label>
               <div className="border-2 border-dashed border-[#D8D5CB] rounded-xl p-6 text-center hover:border-[#1E7A34] transition-colors cursor-pointer"
                 onClick={() => document.getElementById('ninUpload').click()}>
-                {ninPreview ? (
+                {ninPreview === 'pdf' ? (
+                  <div>
+                    <CreditCard className="h-8 w-8 text-[#1E7A34] mx-auto mb-2" />
+                    <p className="text-[13px] text-[#1E2420] font-medium">{ninDocument?.name}</p>
+                    <p className="text-[11px] text-[#9A9488]">PDF selected - click to change</p>
+                  </div>
+                ) : ninPreview ? (
                   <img src={ninPreview} alt="NIN preview" className="max-h-[200px] mx-auto rounded-lg" />
                 ) : (
                   <div>
                     <Upload className="h-8 w-8 text-[#9A9488] mx-auto mb-2" />
                     <p className="text-[13px] text-[#55605A]">Click to upload NIN document</p>
-                    <p className="text-[11px] text-[#9A9488]">PNG only (max 5MB)</p>
+                    <p className="text-[11px] text-[#9A9488]">Documents and images allowed (max 5MB)</p>
                   </div>
                 )}
               </div>
-              <input id="ninUpload" type="file" accept="image/png" className="hidden" onChange={(e) => handleFileUpload(e, 'nin')} />
+              <input id="ninUpload" type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => handleFileUpload(e, 'nin')} />
             </div>
 
             <div>
@@ -236,11 +245,11 @@ export default function ProviderSetup() {
                   <div>
                     <Camera className="h-8 w-8 text-[#9A9488] mx-auto mb-2" />
                     <p className="text-[13px] text-[#55605A]">Click to upload your photo</p>
-                    <p className="text-[11px] text-[#9A9488]">Clear face photo, PNG only</p>
+                    <p className="text-[11px] text-[#9A9488]">Clear face photo, any image format</p>
                   </div>
                 )}
               </div>
-              <input id="selfieUpload" type="file" accept="image/png" className="hidden" onChange={(e) => handleFileUpload(e, 'selfie')} />
+              <input id="selfieUpload" type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'selfie')} />
             </div>
 
             <div className="flex gap-3">

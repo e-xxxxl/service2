@@ -765,11 +765,14 @@ function ProfileView({
     loadProfile();
   }, []);
 
-  const handleVerificationFileChange = (e, setter) => {
+  const handleVerificationFileChange = (e, setter, type) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.type !== "image/png") {
-      setEm("Only PNG images are accepted. Please upload a .png file.");
+    const isImage = file.type.startsWith("image/");
+    const isPdf = file.type === "application/pdf";
+    const allowed = type === "nin" ? (isImage || isPdf) : isImage;
+    if (!allowed) {
+      setEm(type === "nin" ? "NIN document must be a document or an image file." : "Selfie photo must be an image.");
       setTimeout(() => setEm(""), 5000);
       e.target.value = "";
       return;
@@ -1040,11 +1043,11 @@ function ProfileView({
                       </label>
                       <input
                         type="file"
-                        accept="image/png"
-                        onChange={(e) => handleVerificationFileChange(e, setNinDoc)}
+                        accept="image/*,application/pdf"
+                        onChange={(e) => handleVerificationFileChange(e, setNinDoc, "nin")}
                         className="w-full rounded-lg border px-4 py-3 text-[14px]"
                       />
-                      <p className="mt-1 text-[11px] text-[#9A9488]">PNG only</p>
+                      <p className="mt-1 text-[11px] text-[#9A9488]">Documents and images allowed</p>
                     </div>
                     <div>
                       <label className="block text-[13px] font-semibold mb-2">
@@ -1052,11 +1055,11 @@ function ProfileView({
                       </label>
                       <input
                         type="file"
-                        accept="image/png"
-                        onChange={(e) => handleVerificationFileChange(e, setSelfie)}
+                        accept="image/*"
+                        onChange={(e) => handleVerificationFileChange(e, setSelfie, "selfie")}
                         className="w-full rounded-lg border px-4 py-3 text-[14px]"
                       />
-                      <p className="mt-1 text-[11px] text-[#9A9488]">PNG only</p>
+                      <p className="mt-1 text-[11px] text-[#9A9488]">Any image format</p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
