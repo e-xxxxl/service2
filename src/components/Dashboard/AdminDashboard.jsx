@@ -19,6 +19,7 @@ const NAV_CONFIG = [
   { id: "activity", label: "Activity", icon: Activity },
   { id: "reports", label: "Reports", icon: AlertCircle },
   { id: "withdrawals", label: "Withdrawals", icon: Wallet },
+  { id: "subscriptions", label: "Subscriptions", icon: CreditCard },
   { id: "admins", label: "Admins", icon: Shield, superAdminOnly: true },
   { id: "settings", label: "Settings", icon: Settings2 },
 ];
@@ -61,6 +62,10 @@ export default function AdminDashboard() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [withdrawals, setWithdrawals] = useState([]);
   const [withdrawalFilter, setWithdrawalFilter] = useState("pending");
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [subscriptionFilter, setSubscriptionFilter] = useState("active");
+  const [subscriptionSubView, setSubscriptionSubView] = useState("providers");
+  const [subscriptionTransactions, setSubscriptionTransactions] = useState([]);
   const [approvingWithdrawal, setApprovingWithdrawal] = useState(null);
   const [receiptFile, setReceiptFile] = useState(null);
   const [rejectingWithdrawal, setRejectingWithdrawal] = useState(null);
@@ -106,6 +111,10 @@ export default function AdminDashboard() {
     if (activeView === "reports") fetchThreads();
     if (activeView === "admins") fetchAdmins();
     if (activeView === "withdrawals") fetchWithdrawals();
+    if (activeView === "subscriptions") {
+      if (subscriptionSubView === "providers") fetchSubscriptions();
+      else fetchSubscriptionTransactions();
+    }
   }, [activeView, page, searchTerm, filterStatus]);
 
   useEffect(() => {
@@ -115,6 +124,12 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeView === "withdrawals") fetchWithdrawals();
   }, [withdrawalFilter]);
+
+  useEffect(() => {
+    if (activeView !== "subscriptions") return;
+    if (subscriptionSubView === "providers") fetchSubscriptions();
+    else fetchSubscriptionTransactions();
+  }, [subscriptionFilter, subscriptionSubView]);
 
   useEffect(() => { setSidebarOpen(false); }, [activeView]);
 
@@ -143,6 +158,25 @@ export default function AdminDashboard() {
       const d = await r.json();
       if (d.success) setOngoingJobs(d.data);
       else showMessage(setError, d.message || "Failed to load ongoing jobs");
+    } catch (e) {
+      showMessage(setError, "We couldn't connect to the server. Please try again.");
+    }
+  };
+
+  const deleteJob = async (jobId) => {
+    if (!window.confirm("Delete this job permanently? This can't be undone.")) return;
+    try {
+      const r = await fetch(`${API_URL}/admin/jobs/${jobId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const d = await r.json();
+      if (d.success) {
+        setOngoingJobs((prev) => prev.filter((j) => j.id !== jobId));
+        showMessage(setSuccess, "Job deleted");
+      } else {
+        showMessage(setError, d.message || "Failed to delete job");
+      }
     } catch (e) {
       showMessage(setError, "We couldn't connect to the server. Please try again.");
     }
@@ -246,6 +280,73 @@ export default function AdminDashboard() {
       showMessage(setError, "We couldn't connect to the server. Please check your connection and try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSubscriptions = async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`${API_URL}/admin/subscriptions?status=${subscriptionFilter}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const d = await r.json();
+      if (d.success) setSubscriptions(d.data);
+      else showMessage(setError, d.message || "Failed to load subscriptions");
+    } catch (e) {
+      showMessage(setError, "We couldn't connect to the server. Please check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchSubscriptionTransactions = async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`${API_URL}/admin/subscriptions/transactions`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const d = await r.json();
+      if (d.success) setSubscriptionTransactions(d.data);
+      else showMessage(setError, d.message || "Failed to load subscription transactions");
+    } catch (e) {
+      showMessage(setError, "We couldn't connect to the server. Please check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const extendSubscription = async (providerId, days) => {
+    try {
+      const r = await fetch(`${API_URL}/admin/providers/${providerId}/subscription`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ extendDays: days })
+      });
+      const d = await r.json();
+      if (d.success) {
+        showMessage(setSuccess, `Subscription extended by ${days} days`);
+        fetchSubscriptions();
+      } else showMessage(setError, d.message || "Failed to update subscription");
+    } catch (e) {
+      showMessage(setError, "We couldn't connect to the server. Please try again.");
+    }
+  };
+
+  const deactivateSubscription = async (providerId) => {
+    if (!window.confirm("Deactivate this provider's subscription now?")) return;
+    try {
+      const r = await fetch(`${API_URL}/admin/providers/${providerId}/subscription`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ deactivate: true })
+      });
+      const d = await r.json();
+      if (d.success) {
+        showMessage(setSuccess, "Subscription deactivated");
+        fetchSubscriptions();
+      } else showMessage(setError, d.message || "Failed to update subscription");
+    } catch (e) {
+      showMessage(setError, "We couldn't connect to the server. Please try again.");
     }
   };
 
@@ -905,6 +1006,18 @@ const rejectProvider = async () => {
                   <p className="text-[22px] md:text-[28px] font-bold">{dashboardData?.stats?.ongoingJobsCount || 0}</p>
                   <p className="text-[11px] md:text-[13px] text-[#55605A] mt-1">Ongoing jobs · tap to view</p>
                 </button>
+                <button
+                  onClick={() => setActiveView("subscriptions")}
+                  className="text-left rounded-xl border border-[#1E7A34]/20 bg-[#1E7A34]/5 p-4 md:p-6 hover:bg-[#1E7A34]/10 transition-colors"
+                >
+                  <CreditCard className="h-5 w-5 md:h-6 md:w-6 text-[#1E7A34] mb-2 md:mb-3" />
+                  <p className="text-[22px] md:text-[28px] font-bold text-[#1E7A34]">
+                    ₦{(dashboardData?.stats?.subscriptionRevenueTotal || 0).toLocaleString()}
+                  </p>
+                  <p className="text-[11px] md:text-[13px] text-[#55605A] mt-1">
+                    Subscription revenue · {dashboardData?.stats?.activeSubscriptionsCount || 0} active
+                  </p>
+                </button>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6 mb-6 md:mb-8">
                 <StatCard icon={Users} label="Total Users" value={dashboardData?.stats?.totalUsers || 0} color="blue" />
@@ -1184,14 +1297,37 @@ const rejectProvider = async () => {
                       </div>
                       <div className="space-y-2">
                         <h4 className="text-[12px] font-semibold uppercase text-[#9A9488]">Documents</h4>
-                        {selectedProvider.verificationDocuments?.map((doc, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            {doc.type === "nin" ? <FileText className="h-4 w-4 text-[#55605A]" /> : <Image className="h-4 w-4 text-[#55605A]" />}
-                            <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-[13px] text-[#1E7A34] hover:underline">
-                              View {doc.type === "nin" ? "NIN" : "Selfie"}
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-[#55605A] flex-shrink-0" />
+                          <span className="text-[13px]">
+                            NIN: <span className="font-mono font-semibold">{selectedProvider.nin?.number || "Not provided"}</span>
+                          </span>
+                        </div>
+                        {/* Linking directly to nin.documentUrl / selfiePhoto (not the
+                            separate verificationDocuments array) since those are the
+                            fields both the initial submission and every resubmission
+                            keep in sync - verificationDocuments was only ever updated
+                            on first submit and went stale after a resubmission. */}
+                        {selectedProvider.nin?.documentUrl ? (
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-[#55605A]" />
+                            <a href={selectedProvider.nin.documentUrl} target="_blank" rel="noopener noreferrer" className="text-[13px] text-[#1E7A34] hover:underline">
+                              View NIN document
                             </a>
                           </div>
-                        )) || <p className="text-[13px] text-[#9A9488]">No documents</p>}
+                        ) : (
+                          <p className="text-[13px] text-[#9A9488]">No NIN document</p>
+                        )}
+                        {selectedProvider.selfiePhoto ? (
+                          <div className="flex items-center gap-2">
+                            <Image className="h-4 w-4 text-[#55605A]" />
+                            <a href={selectedProvider.selfiePhoto} target="_blank" rel="noopener noreferrer" className="text-[13px] text-[#1E7A34] hover:underline">
+                              View selfie
+                            </a>
+                          </div>
+                        ) : (
+                          <p className="text-[13px] text-[#9A9488]">No selfie</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1664,6 +1800,119 @@ const rejectProvider = async () => {
             </div>
           )}
 
+          {/* ==================== SUBSCRIPTIONS VIEW ==================== */}
+          {activeView === "subscriptions" && (
+            <div>
+              <div className="flex items-center gap-1 rounded-lg bg-[#F7F6F2] p-1 w-fit mb-4">
+                <button
+                  onClick={() => setSubscriptionSubView("providers")}
+                  className={`px-3 py-1.5 rounded-md text-[12px] font-semibold ${subscriptionSubView === "providers" ? "bg-white shadow-sm" : "text-[#55605A]"}`}
+                >
+                  Providers
+                </button>
+                <button
+                  onClick={() => setSubscriptionSubView("transactions")}
+                  className={`px-3 py-1.5 rounded-md text-[12px] font-semibold ${subscriptionSubView === "transactions" ? "bg-white shadow-sm" : "text-[#55605A]"}`}
+                >
+                  Transactions
+                </button>
+              </div>
+
+              {subscriptionSubView === "providers" ? (
+                <>
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-4">
+                    {["active", "inactive", "all"].map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setSubscriptionFilter(s)}
+                        className={`px-3 py-2 rounded-lg text-[12px] font-medium whitespace-nowrap capitalize ${subscriptionFilter === s ? "bg-[#1E2420] text-white" : "bg-white border text-[#55605A] hover:bg-[#F7F6F2]"}`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                  {loading ? (
+                    <p className="text-center py-12 text-[13px] text-[#9A9488]">Loading...</p>
+                  ) : subscriptions.length === 0 ? (
+                    <div className="text-center py-12 bg-white rounded-xl border">
+                      <CreditCard className="h-8 w-8 text-[#D8D5CB] mx-auto mb-3" />
+                      <p className="text-[13px] text-[#9A9488]">No {subscriptionFilter !== "all" ? subscriptionFilter : ""} subscriptions</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {subscriptions.map((s) => (
+                        <div key={s.id} className="bg-white rounded-xl border p-4 md:p-5">
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
+                            <div>
+                              <p className="text-[14px] font-semibold">{s.fullName}{s.companyName ? ` · ${s.companyName}` : ""}</p>
+                              <p className="text-[11px] text-[#9A9488]">{s.email}</p>
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-semibold uppercase ${s.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                              {s.isActive ? "Active" : "Inactive"}
+                            </span>
+                          </div>
+                          <p className="text-[12px] text-[#55605A] mb-3">
+                            {s.expiresAt
+                              ? `${s.isActive ? "Expires" : "Expired"} ${new Date(s.expiresAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}`
+                              : "Never subscribed"}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => extendSubscription(s.id, 30)}
+                              className="rounded-lg border px-3 py-1.5 text-[12px] font-semibold hover:bg-[#F7F6F2]"
+                            >
+                              +30 days
+                            </button>
+                            {s.isActive && (
+                              <button
+                                onClick={() => deactivateSubscription(s.id)}
+                                className="rounded-lg border border-red-300 px-3 py-1.5 text-[12px] font-semibold text-red-600 hover:bg-red-50"
+                              >
+                                Deactivate
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : loading ? (
+                <p className="text-center py-12 text-[13px] text-[#9A9488]">Loading...</p>
+              ) : subscriptionTransactions.length === 0 ? (
+                <div className="text-center py-12 bg-white rounded-xl border">
+                  <CreditCard className="h-8 w-8 text-[#D8D5CB] mx-auto mb-3" />
+                  <p className="text-[13px] text-[#9A9488]">No subscription payments yet</p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl border overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-[#F7F6F2]">
+                      <tr>
+                        <th className="text-left px-6 py-3 text-[12px] font-semibold">Provider</th>
+                        <th className="text-left px-6 py-3 text-[12px] font-semibold">Reference</th>
+                        <th className="text-left px-6 py-3 text-[12px] font-semibold">Date</th>
+                        <th className="text-right px-6 py-3 text-[12px] font-semibold">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subscriptionTransactions.map((t) => (
+                        <tr key={t.id} className="border-t">
+                          <td className="px-6 py-3 text-[13px]">{t.fullName}{t.companyName ? ` · ${t.companyName}` : ""}</td>
+                          <td className="px-6 py-3 text-[12px] text-[#9A9488]">{t.reference}</td>
+                          <td className="px-6 py-3 text-[12px] text-[#9A9488]">
+                            {new Date(t.paidAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
+                          </td>
+                          <td className="px-6 py-3 text-[13px] font-semibold text-right text-[#1E7A34]">₦{t.amount.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ==================== ADMINS VIEW ==================== */}
           {activeView === "admins" && isSuperAdmin && (
             <div>
@@ -1985,6 +2234,12 @@ const rejectProvider = async () => {
                           <span>Target: {new Date(j.deadline).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}</span>
                         )}
                       </div>
+                      <button
+                        onClick={() => deleteJob(j.id)}
+                        className="mt-3 w-full rounded-lg border border-red-200 px-3 py-1.5 text-[12px] font-semibold text-red-600 hover:bg-red-50"
+                      >
+                        Delete job
+                      </button>
                     </div>
                   ))}
                 </div>

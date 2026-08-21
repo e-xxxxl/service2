@@ -34,6 +34,7 @@ function loadPaystackScript() {
 }
 
 export default function PaystackPaymentModal({
+  mode = "job", // "job" | "subscription"
   conversationId,
   messageId,
   amount,
@@ -76,10 +77,11 @@ export default function PaystackPaymentModal({
     setStage("opening");
     try {
       const token = localStorage.getItem("authToken");
-      const res = await fetch(`${API_URL}/payment/initialize`, {
+      const endpoint = mode === "subscription" ? "/payment/subscription/initialize" : "/payment/initialize";
+      const res = await fetch(`${API_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ conversationId, messageId }),
+        body: mode === "subscription" ? undefined : JSON.stringify({ conversationId, messageId }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.message || "Failed to start payment");
@@ -108,7 +110,9 @@ export default function PaystackPaymentModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-md">
         <div className="flex items-center justify-between p-5 border-b border-[#E2E0D9]">
-          <h3 className="text-[16px] font-semibold text-[#1E2420]">Pay for this job</h3>
+          <h3 className="text-[16px] font-semibold text-[#1E2420]">
+            {mode === "subscription" ? "Subscribe to 9jaTradiesPages" : "Pay for this job"}
+          </h3>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[#F7F6F2]" aria-label="Close">
             <X className="h-5 w-5" />
           </button>
@@ -117,16 +121,18 @@ export default function PaystackPaymentModal({
         <div className="p-5 space-y-5">
           <div className="bg-[#1E7A34]/5 border border-[#1E7A34]/20 rounded-xl p-5 text-center">
             <p className="text-[13px] text-[#55605A] mb-1">
-              {providerName ? `Paying ${providerName}` : "Amount to pay"}
+              {mode === "subscription" ? "Monthly subscription" : providerName ? `Paying ${providerName}` : "Amount to pay"}
             </p>
             <p className="text-[32px] font-bold text-[#1E7A34]">₦{(amount || 0).toLocaleString()}</p>
+            {mode === "subscription" && <p className="text-[11px] text-[#9A9488] mt-1">30 days of access</p>}
           </div>
 
           <div className="flex items-start gap-2 text-[12.5px] text-[#55605A]">
             <ShieldCheck className="h-4 w-4 text-[#1E7A34] flex-shrink-0 mt-0.5" />
             <p>
-              Paid securely through Paystack. Your provider's contact details unlock automatically
-              once payment is confirmed, and the job moves to active.
+              {mode === "subscription"
+                ? "Paid securely through Paystack. Once confirmed, you're visible to customers, contactable, and able to view and apply to jobs for 30 days."
+                : "Paid securely through Paystack. Your provider's contact details unlock automatically once payment is confirmed, and the job moves to active."}
             </p>
           </div>
 

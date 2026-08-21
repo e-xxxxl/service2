@@ -48,6 +48,7 @@ import { SERVICE_CATEGORIES } from "../../constants/serviceCategories";
 import { useLocations } from "../../hooks/useLocations";
 import { useSocket } from "../../hooks/useSocket";
 import ContactReveal from "../payment/ContactReveal";
+import PaystackPaymentModal from "../payment/PaystackPaymentModal";
 import SupportChat from "../support/SupportChat";
 import { friendlyErrorMessage } from "../../utils/apiError";
 
@@ -108,10 +109,12 @@ export default function ProviderDashboard({ onLogout }) {
   const navigate = useNavigate();
   const {
     providerName,
+    email,
     companyName,
     profileCompletion,
     verificationStatus,
     rejectionReason,
+    subscription,
     activeJobs,
     recentMessages,
     notifications,
@@ -130,6 +133,7 @@ export default function ProviderDashboard({ onLogout }) {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [newMessage, setNewMessage] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   const { socket, connected: socketConnected } = useSocket();
 
   useEffect(() => {
@@ -310,6 +314,36 @@ export default function ProviderDashboard({ onLogout }) {
               )}
             </button>
           </div>
+          {verificationStatus === "approved" && !subscription?.isActive && (
+            <div className="mx-4 mt-4 md:mx-8 md:mt-6 rounded-xl border border-[#F0821E]/30 bg-[#FFF8F0] px-4 py-3 md:px-5 md:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-[13px] md:text-[14px] font-semibold text-[#B85E10]">
+                  Subscribe to stay visible to customers
+                </p>
+                <p className="text-[12px] text-[#9A9488] mt-0.5">
+                  Your account isn't visible in search, can't be contacted by new customers, and can't browse the job board until you subscribe.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowSubscribeModal(true)}
+                className="flex-shrink-0 rounded-lg bg-[#F0821E] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[#D5720F]"
+              >
+                Subscribe for ₦{(subscription?.fee || 10000).toLocaleString()}/month
+              </button>
+            </div>
+          )}
+          {showSubscribeModal && (
+            <PaystackPaymentModal
+              mode="subscription"
+              amount={subscription?.fee || 10000}
+              customerEmail={email}
+              onClose={() => setShowSubscribeModal(false)}
+              onSuccess={() => {
+                setShowSubscribeModal(false);
+                refetch?.();
+              }}
+            />
+          )}
           {activeView === "dashboard" && (
             <DashboardView
               providerName={providerName}
@@ -2944,11 +2978,13 @@ function JobBoardPanel() {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [needsSubscription, setNeedsSubscription] = useState(false);
   const [applyingId, setApplyingId] = useState(null);
 
   const load = async () => {
     setLoading(true);
     setError("");
+    setNeedsSubscription(false);
     try {
       const token = localStorage.getItem("authToken");
       const API_URL =
@@ -2958,6 +2994,10 @@ function JobBoardPanel() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
+      if (res.status === 402 || data.code === "SUBSCRIPTION_REQUIRED") {
+        setNeedsSubscription(true);
+        return;
+      }
       if (!res.ok) throw new Error(data.message);
       if (subView === "browse") setPostings(data.data || []);
       else setApplications(data.data || []);
@@ -3018,6 +3058,13 @@ function JobBoardPanel() {
           {[0, 1, 2].map((i) => (
             <SkeletonBlock key={i} className="h-[110px] rounded-xl" />
           ))}
+        </div>
+      ) : needsSubscription ? (
+        <div className="rounded-xl border border-[#F0821E]/30 bg-[#FFF8F0] p-6 text-center">
+          <p className="text-[14px] font-semibold text-[#B85E10] mb-1">Subscribe to access the job board</p>
+          <p className="text-[12px] text-[#9A9488]">
+            Browsing and applying to jobs requires an active subscription. Use the banner at the top of your dashboard to subscribe.
+          </p>
         </div>
       ) : error ? (
         <p className="text-[13px] text-red-600">{error}</p>
